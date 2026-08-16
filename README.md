@@ -36,6 +36,5 @@ O escopo analítico utiliza as seguintes fontes públicas para extração de var
 
 * [IBGE - SIDRA (Sistema de Recuperação Automática)](https://sidra.ibge.gov.br/)
 * [DATASUS - TabNet (Casos de Dengue e Chikungunya no SINAN)](https://datasus.saude.gov.br/informacoes-de-saude-tabnet/)
-* [SNIS - Sistema Nacional de Informações sobre Saneamento](http://www.snis.gov.br/)
 * [INMET - Instituto Nacional de Meteorologia (Dados Históricos)](https://portal.inmet.gov.br/dadoshistoricos)
 * [Ipeadata - Indicadores Socioeconômicos Regionais](http://www.ipeadata.gov.br/Default.aspx)
