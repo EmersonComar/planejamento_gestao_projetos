@@ -11,12 +11,12 @@ Artefatos e links exigidos para a entrega da **Sprint 0**:
 
 * **Business Model Canvas:** [Google Drive](https://docs.google.com/presentation/d/1HZ8j-pS682aF5SrYdd5c_HHmTg-nMQDT/edit?usp=sharing&ouid=117602217482546459756&rtpof=true&sd=true)
 * **Backlog e Kanban:** [Trello](https://trello.com/invite/b/6a81b15d7f2522018a2e3036/ATTI2dee072f623d7f4b682fe7fdc171889c398FA237/planejamentogestaoprojetos)
+* **Artigo científico:** [Google Drive](https://docs.google.com/document/d/18nw0vBVnCc_96Eqpvj3kVELwDdO7K6Er8t0rc9T7D2g/edit?usp=sharing)
 
 ## Escopo e Estrutura de Diretórios
 
 O projeto segue a padronização obrigatória de diretórios definida para o ciclo de desenvolvimento contínuo:
 
-* `/article`: Artigo científico construído de forma incremental
 * `/app`: Código-fonte principal da aplicação web (Streamlit)
 * `/data`: Dados brutos e processados extraídos de fontes governamentais
 * `/docs`: Documentação técnica adicional
