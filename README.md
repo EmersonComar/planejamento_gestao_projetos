@@ -1,6 +1,6 @@
 # Análise e Predição de Arboviroses: O Impacto do Saneamento Básico no Brasil
 
-Este projeto possui o objetivo de realizar um estudo analítico referente as arboviroses no Brasil. Para isso, a estratégia será realizar um estudo sobre a biologia do mosquito *Aedes aegypti* e, de acordo com suas caracteristicas biológicas (preferencia de clima, distância máxima de voo, tempo de vida, ciclo de reprodução, etc), vamos levantar hipóteses de como as condições ambientais e socioeconômicas do Brasil podem influenciar a proliferação do mosquito e, consequentemente, a incidência de arboviroses. 
+Este projeto possui o objetivo de realizar um estudo analítico referente as arboviroses no Brasil. Para isso, a estratégia será realizar um estudo sobre a biologia do mosquito *Aedes aegypti* e, de acordo com suas caracteristicas biológicas (preferencia de clima, distância máxima de voo, tempo de vida, ciclo de reprodução, etc), vamos levantar hipóteses de como as condições ambientais e socioeconômicas do Brasil podem influenciar a proliferação do mosquito e, consequentemente, investigar como fatores climáticos, ambientais, demográficos e socioeconômicos estão associados à incidência de arboviroses transmitidas pelo Aedes aegypti e avaliar posteriormente a capacidade dessas variáveis de contribuir para modelos preditivos de incidência.
 
 Vamos adotar a abordagem de Conhecimento de Domínio para guiar a coleta e análise de dados, o que significa que o conhecimento científico sobre a doença e o mosquito será fundamental para guiar as hipóteses e análises.
 
