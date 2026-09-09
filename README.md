@@ -9,9 +9,10 @@ Vamos adotar a abordagem de Conhecimento de Domínio para guiar a coleta e anál
 
 Artefatos e links exigidos para a entrega da **Sprint 0**:
 
-* **Business Model Canvas:** [Google Drive](https://docs.google.com/presentation/d/1HZ8j-pS682aF5SrYdd5c_HHmTg-nMQDT/edit?usp=sharing&ouid=117602217482546459756&rtpof=true&sd=true)
-* **Backlog e Kanban:** [Trello](https://trello.com/invite/b/6a81b15d7f2522018a2e3036/ATTI2dee072f623d7f4b682fe7fdc171889c398FA237/planejamentogestaoprojetos)
-* **Artigo científico:** [Google Drive](https://docs.google.com/document/d/18nw0vBVnCc_96Eqpvj3kVELwDdO7K6Er8t0rc9T7D2g/edit?usp=sharing)
+- **Business Model Canvas:** [Google Slides](https://docs.google.com/presentation/d/1HZ8j-pS682aF5SrYdd5c_HHmTg-nMQDT/edit?usp=sharing&ouid=117602217482546459756&rtpof=true&sd=true)
+- **Backlog e Kanban:** [Trello](https://trello.com/b/MSoAuU1e/planejamentogestaoprojetos) — quadro estruturado em 5 listas (Backlog/To do/Doing/Testing/Done), com WIP limit configurado nas colulas Doing e Testing
+- **Artigo científico:** [Overleaf](https://www.overleaf.com/project/6a9ee65cc6d68da88e434a98)
+- **Repositório GitHub criado**
 
 ## Escopo e Estrutura de Diretórios
 
