@@ -1,3 +1,9 @@
+# Dados brutos/processados (não versionar dados, só a estrutura)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

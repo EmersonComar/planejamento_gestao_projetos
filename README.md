@@ -14,6 +14,13 @@ Artefatos e links exigidos para a entrega da **Sprint 0**:
 - **Artigo científico:** [Overleaf](https://www.overleaf.com/project/6a9ee65cc6d68da88e434a98)
 - **Repositório GitHub criado**
 
+## Entregas - Sprint 1 (Conhecendo os Dados)
+
+- **Levantamento de datasets:** múltiplas fontes públicas reais integradas.
+- **Notebook de EDA:** [`notebooks/notebook_eda_dengue.ipynb`](notebooks/notebook_eda_dengue.ipynb) — pipeline completo executado de ponta a ponta para os 295 municípios de Santa Catarina (2015-2025). As 7 hipóteses de pesquisa (H1-H7) testadas com dado real; H6 (saneamento) com cobertura parcial (55 de 295 municípios, ver abaixo)
+- **Backlog refinado:** quadro Trello consolidado (ver Sprint 0).
+- **Artigo — Fundamentação Teórica:** ainda não iniciada
+
 ## Escopo e Estrutura de Diretórios
 
 O projeto segue a padronização obrigatória de diretórios definida para o ciclo de desenvolvimento contínuo:
@@ -33,9 +40,9 @@ O gerenciamento de dependências e a execução local dos scripts Python são es
 
 ## Referências e Bases de Dados
 
-O escopo analítico utiliza as seguintes fontes públicas para extração de variáveis demográficas, climáticas e epidemiológicas:
+O escopo analítico utiliza as seguintes fontes públicas para extração de variáveis demográficas, climáticas e epidemiológicas. A lista abaixo reflete o que está de fato integrado ao notebook após a Sprint 1 (as fontes originalmente cogitadas na Sprint 0 — DATASUS TabNet e Ipeadata — foram substituídas pelas abaixo por instabilidade e/ou falta de granularidade municipal):
 
-* [IBGE - SIDRA (Sistema de Recuperação Automática)](https://sidra.ibge.gov.br/)
-* [DATASUS - TabNet (Casos de Dengue e Chikungunya no SINAN)](https://datasus.saude.gov.br/informacoes-de-saude-tabnet/)
-* [INMET - Instituto Nacional de Meteorologia (Dados Históricos)](https://portal.inmet.gov.br/dadoshistoricos)
-* [Ipeadata - Indicadores Socioeconômicos Regionais](http://www.ipeadata.gov.br/Default.aspx)
+* [InfoDengue (Fiocruz/UFMG)](https://info.dengue.mat.br/) — casos de dengue, temperatura, umidade e população por município e semana epidemiológica. Substituiu a API SINAN/DEMAS original (`apidadosabertos.saude.gov.br`), que se mostrou instável em uso real.
+* [IBGE - SIDRA](https://sidra.ibge.gov.br/) — estimativas de população residente (tabela 6579) e área territorial (tabela 1301), por município.
+* [INMET - Dados Históricos](https://portal.inmet.gov.br/dadoshistoricos) — precipitação horária por estação meteorológica, agregada por município.
+* [ANA - Atlas Esgotos ETE 2020](https://dadosabertos.ana.gov.br/search) — remoção de DBO (qualidade do tratamento) por Estação de Tratamento de Esgoto ativa, agregada por município. Cobertura parcial: 55 dos 295 municípios de SC têm ETE ativa registrada nesse Atlas.
