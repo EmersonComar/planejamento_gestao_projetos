@@ -17,9 +17,16 @@ Artefatos e links exigidos para a entrega da **Sprint 0**:
 ## Entregas - Sprint 1 (Conhecendo os Dados)
 
 - **Levantamento de datasets:** múltiplas fontes públicas reais integradas.
-- **Notebook de EDA:** [`notebooks/notebook_eda_dengue.ipynb`](notebooks/notebook_eda_dengue.ipynb) — pipeline completo executado de ponta a ponta para os 295 municípios de Santa Catarina (2015-2025). As 7 hipóteses de pesquisa (H1-H7) testadas com dado real; H6 (saneamento) com cobertura parcial (55 de 295 municípios, ver abaixo)
-- **Backlog refinado:** quadro Trello consolidado (ver Sprint 0).
-- **Artigo — Fundamentação Teórica:** ainda não iniciada
+- **Notebook de EDA:** [`notebooks/notebook_eda_dengue.ipynb`](notebooks/notebook_eda_dengue.ipynb)
+- **Backlog refinado:** quadro Trello.
+- **Artigo — Fundamentação Teórica:** Necessita revisão
+
+## Entregas - Sprint 2 (MVP Analítico)
+
+- **Modelo baseline treinado e versionado:** [`models/modelo_baseline_risco_dengue.pkl`](models/modelo_baseline_risco_dengue.pkl)
+- **Notebook de treinamento:** [`notebooks/notebook_modelo_baseline.ipynb`](notebooks/notebook_modelo_baseline.ipynb) totalmente autocontido
+- **Artigo — Metodologia 
+- **Kanban e estimativas:** pendente
 
 ## Escopo e Estrutura de Diretórios
 
