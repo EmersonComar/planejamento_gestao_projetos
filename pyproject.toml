@@ -13,4 +13,10 @@ dependencies = [
     "matplotlib~=3.11.1",
     "scikit-learn==1.6.1",
     "joblib~=1.6.0",
+    "streamlit>=1.65.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
 ]
