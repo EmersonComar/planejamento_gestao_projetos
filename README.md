@@ -1,49 +1,68 @@
 # Análise e Predição de Arboviroses: O Impacto do Saneamento Básico no Brasil
 
-Este projeto possui o objetivo de realizar um estudo analítico referente as arboviroses no Brasil. Para isso, a estratégia será realizar um estudo sobre a biologia do mosquito *Aedes aegypti* e, de acordo com suas caracteristicas biológicas (preferencia de clima, distância máxima de voo, tempo de vida, ciclo de reprodução, etc), vamos levantar hipóteses de como as condições ambientais e socioeconômicas do Brasil podem influenciar a proliferação do mosquito e, consequentemente, investigar como fatores climáticos, ambientais, demográficos e socioeconômicos estão associados à incidência de arboviroses transmitidas pelo Aedes aegypti e avaliar posteriormente a capacidade dessas variáveis de contribuir para modelos preditivos de incidência.
+Este projeto investiga como fatores climáticos, ambientais, demográficos e socioeconômicos se associam à incidência de arboviroses transmitidas pelo mosquito *Aedes aegypti*. O MVP atual concentra-se na dengue em Santa Catarina: integra dados municipais, explora hipóteses orientadas por conhecimento de domínio e avalia o uso dessas variáveis em um modelo de classificação de risco.
 
-Vamos adotar a abordagem de Conhecimento de Domínio para guiar a coleta e análise de dados, o que significa que o conhecimento científico sobre a doença e o mosquito será fundamental para guiar as hipóteses e análises.
+O conhecimento científico sobre a doença e a biologia do mosquito orienta a coleta de dados e a formulação das hipóteses.
 
+## Entregas por Sprint
 
-## Entregas - Sprint 0 (Planejamento)
-
-Artefatos e links exigidos para a entrega da **Sprint 0**:
+### Sprint 0 — Planejamento
 
 - **Business Model Canvas:** [Google Slides](https://docs.google.com/presentation/d/1HZ8j-pS682aF5SrYdd5c_HHmTg-nMQDT/edit?usp=sharing&ouid=117602217482546459756&rtpof=true&sd=true)
-- **Backlog e Kanban:** [Trello](https://trello.com/b/MSoAuU1e/planejamentogestaoprojetos) — quadro estruturado em 5 listas (Backlog/To do/Doing/Testing/Done), com WIP limit configurado nas colulas Doing e Testing
-- **Artigo científico:** [Overleaf](https://www.overleaf.com/project/6a9ee65cc6d68da88e434a98)
-- **Repositório GitHub criado**
+- **Backlog e Kanban:** [Trello](https://trello.com/b/MSoAuU1e/planejamentogestaoprojetos).
+- **Artigo científico:** [Overleaf](https://www.overleaf.com/project/6a9ee65cc6d68da88e434a98).
 
-## Entregas - Sprint 1 (Conhecendo os Dados)
+### Sprint 1 — Conhecendo os Dados
 
-- **Levantamento de datasets:** múltiplas fontes públicas reais integradas.
-- **Notebook de EDA:** [`notebooks/notebook_eda_dengue.ipynb`](notebooks/notebook_eda_dengue.ipynb)
-- **Backlog refinado:** quadro Trello.
-- **Artigo — Fundamentação Teórica:** Necessita revisão
+- Levantamento e integração de fontes públicas de dados epidemiológicos, climáticos, demográficos e de saneamento.
+- Análise exploratória e formulação de hipóteses no [notebook de EDA](notebooks/notebook_eda_dengue.ipynb).
+- Backlog refinado no [Trello](https://trello.com/b/MSoAuU1e/planejamentogestaoprojetos).
 
-## Entregas - Sprint 2 (MVP Analítico)
+### Sprint 2 — MVP Analítico
 
-- **Modelo baseline treinado e versionado:** [`models/modelo_baseline_risco_dengue.pkl`](models/modelo_baseline_risco_dengue.pkl)
-- **Notebook de treinamento:** [`notebooks/notebook_modelo_baseline.ipynb`](notebooks/notebook_modelo_baseline.ipynb) totalmente autocontido
-- **Artigo — Metodologia 
-- **Kanban e estimativas:** pendente
+- Modelo baseline treinado e versionado em [`models/modelo_baseline_risco_dengue.pkl`](models/modelo_baseline_risco_dengue.pkl).
+- Pipeline e treinamento documentados no [notebook do modelo baseline](notebooks/notebook_modelo_baseline.ipynb).
+
+### Sprint 3 — MVP do Produto
+
+- Aplicação web em Streamlit integrada ao modelo baseline.
+- Simulador de risco com entradas climáticas, demográficas e temporais; apresenta classe de risco, probabilidade e fatores de importância global do modelo.
+- Links da tabela de análise preenchem o simulador com os valores da respectiva linha.
+- Testes automatizados cobrem o carregamento da aplicação, as métricas de risco e a consistência entre dados reais, tabela e simulador.
+
+## Executar a Aplicação
+
+É necessário ter Python 3.14 ou superior e o [uv](https://docs.astral.sh/uv/getting-started/installation/) instalado. No terminal, a partir da raiz do repositório:
+
+```bash
+uv sync
+uv run -m streamlit run app/main.py
+```
+
+O Streamlit abrirá a aplicação no navegador, normalmente em <http://localhost:8501>. Para encerrar o servidor, pressione `Ctrl+C` no terminal.
+
+Para executar os testes automatizados:
+
+```bash
+uv run python -m pytest tests/
+```
 
 ## Escopo e Estrutura de Diretórios
 
 O projeto segue a padronização obrigatória de diretórios definida para o ciclo de desenvolvimento contínuo:
 
-* `/app`: Código-fonte principal da aplicação web (Streamlit)
-* `/data`: Dados brutos e processados extraídos de fontes governamentais
-* `/docs`: Documentação técnica adicional
-* `/models`: Modelos preditivos treinados e exportados
-* `/notebooks`: Experimentação, análise exploratória e pipeline de pré-processamento
-* `/src`: Scripts auxiliares e módulos Python
-* `/tests`: Cobertura de testes unitários e de integração
-* `.github/`: Configurações de automação e templates do repositório
+* `/app`: aplicação web em Streamlit
+* `/data`: dados brutos e processados
+* `/docs`: documentação técnica
+* `/models`: modelos treinados e exportados
+* `/notebooks`: análise exploratória e experimentação
+* `/src`: domínio, casos de uso e infraestrutura
+* `/tests`: testes automatizados
+* `.github/`: automação e configurações do GitHub
 
 ## Configuração do Ambiente
 
-O gerenciamento de dependências e a execução local dos scripts Python são estruturados através do gerenciador de pacotes `uv`. A arquitetura do projeto foi desenhada para operar com máxima performance em sistemas Ubuntu, facilitando a reprodução da análise de dados.
+O gerenciamento de dependências e a execução local são feitos com `uv`. Consulte [Executar a Aplicação](#executar-a-aplicação) para configurar o ambiente e iniciar o dashboard.
 
 ## Referências e Bases de Dados
 
