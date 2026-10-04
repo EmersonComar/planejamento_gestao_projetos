@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict, Optional
 
 class RiskLevel(Enum):
     LOW = "Baixo"
@@ -19,3 +20,4 @@ class DengueRiskInput:
 class DengueRiskOutput:
     risk_level: RiskLevel
     probability: float
+    feature_importances: Optional[Dict[str, float]] = None

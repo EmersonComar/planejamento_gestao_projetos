@@ -7,3 +7,6 @@ class PredictRiskUseCase:
 
     def execute(self, data: DengueRiskInput) -> DengueRiskOutput:
         return self._predictor.predict(data)
+
+    def execute_batch(self, data_list: list[DengueRiskInput]) -> list[DengueRiskOutput]:
+        return self._predictor.predict_batch(data_list)
