@@ -140,13 +140,33 @@ def get_dashboard_use_case():
     return DashboardAnalyticsUseCase(repo)
 
 
-def row_to_input(row):
-    values = {key: float(row[key]) for key in SIMULATOR_FIELD_MAP}
-    if not all(math.isfinite(value) for value in values.values()):
-        raise ValueError("Entradas incompletas ou não finitas para calcular o risco.")
-    if values["mes"] not in range(1, 13):
+def parse_simulator_value(key, raw_value):
+    label = CHART_LABELS[key]
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{label}: preencha um número válido.") from None
+    if not math.isfinite(value):
+        raise ValueError(f"{label}: entradas não finitas não são permitidas.")
+    if key == "mes" and value not in range(1, 13):
         raise ValueError("O mês deve ser um inteiro entre 1 e 12.")
-    values["mes"] = int(values["mes"])
+    if key == "umidade_media" and not 0 <= value <= 100:
+        raise ValueError("A umidade média deve estar entre 0% e 100%.")
+    if key in {"precipitacao_total", "densidade_demografica", "casos_lag1", "incidencia_lag1"} and value < 0:
+        raise ValueError(f"{label}: o valor deve ser igual ou maior que zero.")
+    return int(value) if key == "mes" else value
+
+
+def is_valid_simulator_value(key, value):
+    try:
+        parse_simulator_value(key, value)
+        return True
+    except ValueError:
+        return False
+
+
+def row_to_input(row):
+    values = {key: parse_simulator_value(key, row.get(key)) for key in SIMULATOR_FIELD_MAP}
     return DengueRiskInput(**values)
 
 
@@ -162,11 +182,9 @@ def build_simulator_url(row):
     params = {"simulador": 1}
     for key in SIMULATOR_FIELD_MAP:
         try:
-            value = float(row.get(key))
-            valid = math.isfinite(value) and (key != "mes" or value in range(1, 13))
-        except (TypeError, ValueError):
-            valid = False
-        params[key] = (int(value) if key == "mes" else value) if valid else ""
+            params[key] = parse_simulator_value(key, row.get(key))
+        except ValueError:
+            params[key] = ""
     if row.get("nome_municipio"):
         params["municipio"] = row["nome_municipio"]
     if pd.notna(row.get("ano_mes")):
@@ -189,11 +207,8 @@ def get_form_defaults_from_query_params():
     for key in defaults:
         if key in params or "simulador" in params:
             try:
-                value = float(params.get(key, ""))
-                if not math.isfinite(value) or (key == "mes" and value not in range(1, 13)):
-                    raise ValueError
-                defaults[key] = int(value) if key == "mes" else value
-            except (TypeError, ValueError):
+                defaults[key] = parse_simulator_value(key, params.get(key, ""))
+            except ValueError:
                 defaults[key] = None
     return defaults
 
@@ -213,6 +228,8 @@ def render_prediction_tab(use_case: PredictRiskUseCase):
     missing = [key for key in SIMULATOR_FIELD_MAP if st.session_state.get(key) is None]
     if missing:
         st.warning("Preencha os dados faltantes para analisar o risco: " + "; ".join(CHART_LABELS[key] for key in missing) + ".")
+        if any(st.query_params.get(key, "") and defaults[key] is None for key in missing):
+            st.caption("Valores inválidos recebidos pelo link foram deixados em branco. Corrija os campos indicados antes de analisar.")
 
     with st.form("predict_form"):
         col1, col2, col3 = st.columns(3)
@@ -232,16 +249,19 @@ def render_prediction_tab(use_case: PredictRiskUseCase):
                 st.session_state["umidade_media"] = defaults["umidade_media"]
             umidade = st.number_input(
                 "Umidade Media (%)",
+                min_value=0.0,
+                max_value=100.0,
                 key="umidade_media",
                 value=None,
                 placeholder="Preencha o valor",
-                help="Percentual medio de umidade relativa do ar no municipio",
+                help="Umidade relativa média do ar: de 0% a 100%.",
             )
 
             if "precipitacao_total" not in st.session_state:
                 st.session_state["precipitacao_total"] = defaults["precipitacao_total"]
             precipitacao = st.number_input(
                 "Precipitacao Total (mm)",
+                min_value=0.0,
                 key="precipitacao_total",
                 value=None,
                 placeholder="Preencha o valor",
@@ -253,6 +273,7 @@ def render_prediction_tab(use_case: PredictRiskUseCase):
                 st.session_state["densidade_demografica"] = defaults["densidade_demografica"]
             densidade = st.number_input(
                 "Densidade Demografica",
+                min_value=0.0,
                 key="densidade_demografica",
                 value=None,
                 placeholder="Preencha o valor",
@@ -522,7 +543,7 @@ def render_dashboard_tab(repo: CsvDataRepository):
                 "incidencia_lag1",
             ]].copy()
             valid = risk_source[list(SIMULATOR_FIELD_MAP)].apply(
-                lambda series: pd.to_numeric(series, errors="coerce").map(math.isfinite)
+                lambda series: series.map(lambda value: is_valid_simulator_value(series.name, value))
             ).all(axis=1)
             risk_source = risk_source.loc[valid]
             risk_inputs = [row_to_input(row) for _, row in risk_source.iterrows()]

@@ -194,3 +194,62 @@ def test_first_month_missing_lags_remain_blank_in_simulator(dashboard_data):
     assert at.number_input[4].value is None
     assert at.number_input[5].value is None
     assert "Casos de dengue no mês anterior" in at.warning[0].value
+
+
+@pytest.mark.parametrize("field,value", [
+    ("umidade_media", -1),
+    ("umidade_media", 101),
+    ("precipitacao_total", -1),
+    ("densidade_demografica", -1),
+    ("casos_lag1", -1),
+    ("incidencia_lag1", -1),
+    ("mes", 0),
+    ("mes", 13),
+    ("mes", 1.5),
+    ("temperatura_media", float("inf")),
+    ("temperatura_media", float("nan")),
+    ("temperatura_media", "abc"),
+])
+def test_invalid_values_cannot_reach_prediction(analytical_data, field, value):
+    row = DashboardAnalyticsUseCase.prepare_temporal_features(analytical_data).loc[lambda frame: frame["mes"] == 2].iloc[0].copy()
+    row[field] = value
+    with pytest.raises(ValueError):
+        row_to_input(row)
+    params = parse_qs(urlsplit(build_simulator_url(row)).query, keep_blank_values=True)
+    assert params[field] == [""]
+
+
+def test_invalid_link_values_are_blank_and_can_be_corrected(dashboard_data):
+    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20)
+    at.query_params.update({
+        "simulador": "1", "temperatura_media": "-5", "umidade_media": "101",
+        "precipitacao_total": "-10", "densidade_demografica": "abc",
+        "mes": "13", "casos_lag1": "-2", "incidencia_lag1": "inf",
+    })
+    at.run()
+    assert not at.exception
+    assert at.number_input[0].value == -5
+    assert all(widget.value is None for widget in at.number_input[1:])
+    assert at.selectbox[0].value is None
+    assert any("Valores inválidos" in caption.value for caption in at.caption)
+    at.button[0].click().run()
+    assert not at.exception and not at.success and not at.error
+    for widget in at.number_input[1:]:
+        widget.set_value(0.0)
+    at.selectbox[0].set_value(1)
+    at.button[0].click().run()
+    assert not at.exception and not at.warning
+    assert at.success or at.error
+
+
+@pytest.mark.parametrize("humidity", [0.0, 100.0])
+def test_valid_boundary_values_and_negative_temperature(analytical_data, humidity):
+    row = DashboardAnalyticsUseCase.prepare_temporal_features(analytical_data).iloc[0].copy()
+    row["temperatura_media"] = -5.0
+    row["umidade_media"] = humidity
+    for field in ("precipitacao_total", "densidade_demografica", "casos_lag1", "incidencia_lag1"):
+        row[field] = 0.0
+    inputs = row_to_input(row)
+    assert inputs.temperatura_media == -5.0
+    assert inputs.umidade_media == humidity
+    assert inputs.casos_lag1 == 0.0

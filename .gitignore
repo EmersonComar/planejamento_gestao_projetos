@@ -3,6 +3,8 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+# Base municipal agregada necessária para o painel publicado no Streamlit Cloud.
+!data/processed/base_analitica_sc.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
