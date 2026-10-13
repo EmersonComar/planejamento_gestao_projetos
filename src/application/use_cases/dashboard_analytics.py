@@ -17,8 +17,36 @@ class DashboardAnalyticsUseCase:
             return frame
         return frame.sample(n=max_rows, random_state=42).copy()
 
+    @staticmethod
+    def prepare_temporal_features(frame: pd.DataFrame) -> pd.DataFrame:
+        """Join the previous calendar month of the same municipality, preserving gaps."""
+        frame = frame.sort_values(["codigo_ibge", "ano_mes"]).copy()
+        frame["mes"] = frame["ano_mes"].dt.month
+        frame["_period"] = frame["ano_mes"].dt.to_period("M")
+        if frame.duplicated(["codigo_ibge", "_period"]).any():
+            raise ValueError("Há mais de um registro por município e mês na base.")
+        lag_columns = {
+            "casos": "casos_lag1",
+            "incidencia_100k": "incidencia_lag1",
+            "precipitacao_total": "precipitacao_total_lag1",
+        }
+        frame = frame.drop(columns=list(lag_columns.values()), errors="ignore")
+        previous = frame[["codigo_ibge", "_period", *lag_columns]].copy()
+        previous["_period"] = previous["_period"] + 1
+        previous = previous.rename(columns=lag_columns)
+        return frame.merge(
+            previous, on=["codigo_ibge", "_period"], how="left", validate="one_to_one"
+        ).drop(columns="_period")
+
+    @staticmethod
+    def population_snapshot(frame: pd.DataFrame) -> tuple[float, pd.Timestamp]:
+        """Population of the municipalities represented in the latest period only."""
+        period = frame["ano_mes"].max()
+        population = frame.loc[frame["ano_mes"] == period, "populacao"].sum(min_count=1)
+        return population, period
+
     def build_dashboard_snapshot(self) -> dict:
-        df_full = self._repo.load()
+        df_full = self.prepare_temporal_features(self._repo.load())
         summary = self._repo.get_state_summary_by_period()
 
         top_mun = (
@@ -46,10 +74,9 @@ class DashboardAnalyticsUseCase:
             ),
             "precipitacao": self._sample_for_chart(
                 (
-                    df_full[["precipitacao_total", "incidencia_100k"]]
+                    df_full[["precipitacao_total_lag1", "incidencia_100k"]]
                     .dropna()
                     .copy()
-                    .assign(precipitacao_total_lag1=lambda frame: frame["precipitacao_total"].shift(1).fillna(0))
                 )
             ),
             "umidade": self._sample_for_chart(
@@ -67,9 +94,7 @@ class DashboardAnalyticsUseCase:
             ),
             "dependencia_temporal": self._sample_for_chart(
                 (
-                    df_full.sort_values(["codigo_ibge", "ano_mes"]).copy()
-                    .assign(casos_lag1=lambda frame: frame.groupby("codigo_ibge")["casos"].transform(lambda series: series.shift(1).fillna(0)))
-                    [["casos", "casos_lag1"]]
+                    df_full[["casos", "casos_lag1"]]
                     .dropna()
                     .copy()
                 )
@@ -84,10 +109,7 @@ class DashboardAnalyticsUseCase:
         }
 
     def build_municipality_snapshot(self, municipality: str) -> dict:
-        df_mun = self._repo.filter_by_municipality(municipality).sort_values("ano_mes").copy()
-        df_mun["mes"] = df_mun["ano_mes"].dt.month
-        df_mun["casos_lag1"] = df_mun["casos"].shift(1).fillna(0.0)
-        df_mun["incidencia_lag1"] = df_mun["incidencia_100k"].shift(1).fillna(0.0)
+        df_mun = self.prepare_temporal_features(self._repo.filter_by_municipality(municipality))
 
         return {
             "municipality": municipality,
@@ -102,7 +124,7 @@ class DashboardAnalyticsUseCase:
                 df_mun[["umidade_media", "incidencia_100k"]].dropna().copy()
             ),
             "precipitacao_x_incidencia": self._sample_for_chart(
-                df_mun[["precipitacao_total", "incidencia_100k"]].dropna().copy()
+                df_mun[["precipitacao_total_lag1", "incidencia_100k"]].dropna().copy()
             ),
             "lag_casos": self._sample_for_chart(
                 df_mun[["ano_mes", "casos", "casos_lag1"]].copy()

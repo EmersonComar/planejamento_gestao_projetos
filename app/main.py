@@ -1,6 +1,9 @@
 import os
+import math
+from textwrap import wrap
 from urllib.parse import urlencode
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -11,6 +14,31 @@ from src.infrastructure.data.csv_repository import CsvDataRepository
 from src.infrastructure.ml.predictor import SklearnPredictor
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CHART_LABELS = {
+    "ano_mes": "Mês e ano",
+    "nome_municipio": "Município",
+    "casos": "Casos de dengue no mês",
+    "casos_total": "Total de casos de dengue",
+    "incidencia_100k": "Casos por 100 mil habitantes",
+    "incidencia_media": "Média municipal de casos por 100 mil habitantes",
+    "temperatura_media": "Temperatura média (°C)",
+    "umidade_media": "Umidade média do ar (%)",
+    "precipitacao_total": "Chuva acumulada no mês (mm)",
+    "precipitacao_total_lag1": "Chuva acumulada no mês anterior (mm)",
+    "densidade_demografica": "Habitantes por km²",
+    "casos_lag1": "Casos de dengue no mês anterior",
+    "incidencia_lag1": "Casos por 100 mil habitantes no mês anterior",
+    "remocao_dbo_media": "Remoção média de matéria orgânica no esgoto — DBO (%)",
+    "mes": "Mês do ano",
+    "Mes": "Mês do ano",
+    "Casos": "Total de casos de dengue",
+    "Variavel": "Variável do modelo",
+    "Peso": "Importância no modelo",
+}
+MONTH_NAMES = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+]
 SIMULATOR_FIELD_MAP = {
     "temperatura_media": "temperatura_media",
     "umidade_media": "umidade_media",
@@ -22,6 +50,75 @@ SIMULATOR_FIELD_MAP = {
 }
 
 st.set_page_config(page_title="Predicao de Risco de Dengue - SC", layout="wide")
+st.html("""
+<style>
+/* Let chart hover cards show full labels, including units, on narrow screens. */
+#vg-tooltip-element {
+    max-width: min(560px, calc(100vw - 24px)) !important;
+}
+#vg-tooltip-element table {
+    width: 100%;
+    table-layout: fixed;
+}
+#vg-tooltip-element table tr td.key,
+#vg-tooltip-element table tr td.value {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    max-width: none !important;
+    max-height: none !important;
+    display: table-cell !important;
+    -webkit-line-clamp: unset !important;
+}
+#vg-tooltip-element table tr td.key {
+    width: 68%;
+    text-align: left !important;
+    padding-right: 12px !important;
+}
+</style>
+""")
+
+
+def render_labeled_chart(frame, x, y, kind, *, y_title=None):
+    """Use readable names and units in both axes and hover cards."""
+    frame = frame.copy()
+    x_type = "temporal" if x == "ano_mes" else "nominal" if x in {"nome_municipio", "Variavel", "Mes"} else "quantitative"
+    if x == "Mes":
+        frame[x] = frame[x].map(dict(enumerate(MONTH_NAMES, start=1)))
+    x_label = CHART_LABELS.get(x, x)
+    y_label = y_title or CHART_LABELS.get(y, y)
+    x_options = {"sort": MONTH_NAMES} if x == "Mes" else {"sort": None} if x_type == "nominal" else {}
+    tooltips = [
+        alt.Tooltip(x, type=x_type, title=x_label, **({"format": "%m/%Y"} if x_type == "temporal" else {"format": ",.2f"} if x_type == "quantitative" else {})),
+        alt.Tooltip(y, type="quantitative", title=y_label, format=",.2f"),
+    ]
+    for field in ("nome_municipio", "ano_mes"):
+        if field in frame.columns and field != x:
+            tooltips.insert(0, alt.Tooltip(field, type="temporal" if field == "ano_mes" else "nominal", title=CHART_LABELS[field], **({"format": "%m/%Y"} if field == "ano_mes" else {})))
+    chart = alt.Chart(frame)
+    if kind == "scatter":
+        chart = chart.mark_circle(size=45, opacity=0.6)
+    elif kind == "bar":
+        chart = chart.mark_bar()
+    elif kind == "area":
+        chart = chart.mark_area(point=True)
+    else:
+        chart = chart.mark_line(point=True)
+    chart = chart.encode(
+        x=alt.X(x, type=x_type, title=wrap(x_label, width=32), **x_options),
+        y=alt.Y(y, type="quantitative", title=wrap(y_label, width=32)),
+        tooltip=tooltips,
+    ).properties(height=320)
+    if kind == "bar" and x in {"nome_municipio", "Variavel"}:
+        # Give long names their own row instead of truncating vertical labels.
+        chart = alt.Chart(frame).mark_bar().encode(
+            x=alt.X(y, type="quantitative", title=wrap(y_label, width=48)),
+            y=alt.Y(x, type="nominal", title=x_label, sort=None,
+                      axis=alt.Axis(labelLimit=0, labelFontSize=12)),
+            tooltip=tooltips,
+        ).properties(height=max(280, len(frame) * 30))
+    st.altair_chart(chart, width="stretch")
 
 
 @st.cache_resource
@@ -43,25 +140,14 @@ def get_dashboard_use_case():
     return DashboardAnalyticsUseCase(repo)
 
 
-def _as_float(value, default=0.0):
-    try:
-        if value is None or value == "":
-            return float(default)
-        return float(value)
-    except (TypeError, ValueError):
-        return float(default)
-
-
 def row_to_input(row):
-    return DengueRiskInput(
-        temperatura_media=_as_float(row.get("temperatura_media", 25.0)),
-        umidade_media=_as_float(row.get("umidade_media", 70.0)),
-        precipitacao_total=_as_float(row.get("precipitacao_total", 100.0)),
-        densidade_demografica=_as_float(row.get("densidade_demografica", 100.0)),
-        mes=int(row.get("mes", 1) or 1),
-        casos_lag1=_as_float(row.get("casos_lag1", 0.0)),
-        incidencia_lag1=_as_float(row.get("incidencia_lag1", 0.0)),
-    )
+    values = {key: float(row[key]) for key in SIMULATOR_FIELD_MAP}
+    if not all(math.isfinite(value) for value in values.values()):
+        raise ValueError("Entradas incompletas ou não finitas para calcular o risco.")
+    if values["mes"] not in range(1, 13):
+        raise ValueError("O mês deve ser um inteiro entre 1 e 12.")
+    values["mes"] = int(values["mes"])
+    return DengueRiskInput(**values)
 
 
 def evaluate_risk_for_row(row, use_case: PredictRiskUseCase | None = None):
@@ -73,16 +159,18 @@ def evaluate_risk_for_row(row, use_case: PredictRiskUseCase | None = None):
 
 
 def build_simulator_url(row):
-    params = {
-        "simulador": 1,
-        "temperatura_media": _as_float(row.get("temperatura_media", 25.0)),
-        "umidade_media": _as_float(row.get("umidade_media", 70.0)),
-        "precipitacao_total": _as_float(row.get("precipitacao_total", 100.0)),
-        "densidade_demografica": _as_float(row.get("densidade_demografica", 100.0)),
-        "mes": int(row.get("mes", 1) or 1),
-        "casos_lag1": _as_float(row.get("casos_lag1", 0.0)),
-        "incidencia_lag1": _as_float(row.get("incidencia_lag1", 0.0)),
-    }
+    params = {"simulador": 1}
+    for key in SIMULATOR_FIELD_MAP:
+        try:
+            value = float(row.get(key))
+            valid = math.isfinite(value) and (key != "mes" or value in range(1, 13))
+        except (TypeError, ValueError):
+            valid = False
+        params[key] = (int(value) if key == "mes" else value) if valid else ""
+    if row.get("nome_municipio"):
+        params["municipio"] = row["nome_municipio"]
+    if pd.notna(row.get("ano_mes")):
+        params["periodo"] = pd.Timestamp(row["ano_mes"]).strftime("%m/%Y")
     return "?" + urlencode(params)
 
 
@@ -98,31 +186,33 @@ def get_form_defaults_from_query_params():
         "incidencia_lag1": 0.0,
     }
 
-    for key, default in defaults.items():
-        if key in params:
-            value = params[key]
-            if key == "mes":
-                defaults[key] = int(value)
-            else:
-                defaults[key] = float(value)
-    if "simulador" in params:
-        defaults["temperatura_media"] = float(params.get("temperatura_media", defaults["temperatura_media"]))
-        defaults["umidade_media"] = float(params.get("umidade_media", defaults["umidade_media"]))
-        defaults["precipitacao_total"] = float(params.get("precipitacao_total", defaults["precipitacao_total"]))
-        defaults["densidade_demografica"] = float(params.get("densidade_demografica", defaults["densidade_demografica"]))
-        defaults["mes"] = int(params.get("mes", defaults["mes"]))
-        defaults["casos_lag1"] = float(params.get("casos_lag1", defaults["casos_lag1"]))
-        defaults["incidencia_lag1"] = float(params.get("incidencia_lag1", defaults["incidencia_lag1"]))
+    for key in defaults:
+        if key in params or "simulador" in params:
+            try:
+                value = float(params.get(key, ""))
+                if not math.isfinite(value) or (key == "mes" and value not in range(1, 13)):
+                    raise ValueError
+                defaults[key] = int(value) if key == "mes" else value
+            except (TypeError, ValueError):
+                defaults[key] = None
     return defaults
 
 
 def render_prediction_tab(use_case: PredictRiskUseCase):
     defaults = get_form_defaults_from_query_params()
-    for key, value in defaults.items():
-        if key in st.query_params:
+    source = tuple(sorted(st.query_params.to_dict().items()))
+    if st.session_state.get("_simulator_source") != source:
+        for key, value in defaults.items():
             st.session_state[key] = value
-        else:
-            st.session_state.setdefault(key, value)
+        st.session_state["_simulator_source"] = source
+
+    municipality = st.query_params.get("municipio")
+    period = st.query_params.get("periodo")
+    if municipality or period:
+        st.caption("Dados carregados: " + " — ".join(value for value in (municipality, period) if value))
+    missing = [key for key in SIMULATOR_FIELD_MAP if st.session_state.get(key) is None]
+    if missing:
+        st.warning("Preencha os dados faltantes para analisar o risco: " + "; ".join(CHART_LABELS[key] for key in missing) + ".")
 
     with st.form("predict_form"):
         col1, col2, col3 = st.columns(3)
@@ -133,6 +223,8 @@ def render_prediction_tab(use_case: PredictRiskUseCase):
             temperatura = st.number_input(
                 "Temperatura Media (C)",
                 key="temperatura_media",
+                value=None,
+                placeholder="Preencha o valor",
                 help="Media da temperatura em graus Celsius no municipio",
             )
 
@@ -141,6 +233,8 @@ def render_prediction_tab(use_case: PredictRiskUseCase):
             umidade = st.number_input(
                 "Umidade Media (%)",
                 key="umidade_media",
+                value=None,
+                placeholder="Preencha o valor",
                 help="Percentual medio de umidade relativa do ar no municipio",
             )
 
@@ -149,6 +243,8 @@ def render_prediction_tab(use_case: PredictRiskUseCase):
             precipitacao = st.number_input(
                 "Precipitacao Total (mm)",
                 key="precipitacao_total",
+                value=None,
+                placeholder="Preencha o valor",
                 help="Total de precipitacao mensal em milimetros",
             )
 
@@ -158,6 +254,8 @@ def render_prediction_tab(use_case: PredictRiskUseCase):
             densidade = st.number_input(
                 "Densidade Demografica",
                 key="densidade_demografica",
+                value=None,
+                placeholder="Preencha o valor",
                 help="Densidade demografica (hab/km2) do municipio",
             )
 
@@ -166,7 +264,7 @@ def render_prediction_tab(use_case: PredictRiskUseCase):
             mes = st.selectbox(
                 "Mes",
                 options=list(range(1, 13)),
-                index=int(st.session_state.get("mes", defaults["mes"])) - 1,
+                index=None,
                 key="mes",
                 help="Mes do ano (1=Janeiro, 12=Dezembro) para o qual a predicao sera feita",
             )
@@ -178,6 +276,8 @@ def render_prediction_tab(use_case: PredictRiskUseCase):
                 "Casos (Mes Anterior)",
                 min_value=0.0,
                 key="casos_lag1",
+                value=None,
+                placeholder="Preencha o valor",
                 help="Numero de casos notificados no mes anterior",
             )
 
@@ -187,39 +287,48 @@ def render_prediction_tab(use_case: PredictRiskUseCase):
                 "Incidencia (Mes Anterior)",
                 min_value=0.0,
                 key="incidencia_lag1",
+                value=None,
+                placeholder="Preencha o valor",
                 help="Taxa de incidencia por 100 mil habitantes no mes anterior",
             )
 
         submitted = st.form_submit_button("Analisar Risco")
 
     if submitted:
-        input_data = DengueRiskInput(
-            temperatura_media=temperatura,
-            umidade_media=umidade,
-            precipitacao_total=precipitacao,
-            densidade_demografica=densidade,
-            mes=mes,
-            casos_lag1=casos_lag1,
-            incidencia_lag1=incidencia_lag1,
-        )
+        values = {
+            "temperatura_media": temperatura,
+            "umidade_media": umidade,
+            "precipitacao_total": precipitacao,
+            "densidade_demografica": densidade,
+            "mes": mes,
+            "casos_lag1": casos_lag1,
+            "incidencia_lag1": incidencia_lag1,
+        }
+        missing = [key for key, value in values.items() if value is None]
+        if missing:
+            st.warning("Ainda faltam dados: " + "; ".join(CHART_LABELS[key] for key in missing) + ". Preencha esses campos para analisar o risco.")
+            return
 
         try:
+            input_data = row_to_input(values)
             result = use_case.execute(input_data)
 
             st.subheader("Resultado da Analise")
 
             if result.risk_level.name == "HIGH":
-                st.error(f"Risco: {result.risk_level.value} (Probabilidade: {result.probability:.2%})")
+                st.error(f"Risco: {result.risk_level.value} (Probabilidade de risco alto: {result.probability:.2%})")
             else:
-                st.success(f"Risco: {result.risk_level.value} (Probabilidade: {result.probability:.2%})")
+                st.success(f"Risco: {result.risk_level.value} (Probabilidade de risco alto: {result.probability:.2%})")
 
             if result.feature_importances:
-                st.subheader("Fatores de Maior Peso no Modelo")
+                st.subheader("Importância Global das Variáveis no Modelo")
+                st.caption("Pesos gerais do modelo; não explicam individualmente este resultado nem comprovam causalidade.")
                 df_imp = pd.DataFrame(
                     list(result.feature_importances.items()),
                     columns=["Variavel", "Peso"],
                 ).sort_values("Peso", ascending=False)
-                st.bar_chart(data=df_imp.set_index("Variavel"))
+                df_imp["Variavel"] = df_imp["Variavel"].map(lambda name: CHART_LABELS.get(name, name))
+                render_labeled_chart(df_imp, "Variavel", "Peso", "bar")
 
         except Exception as e:
             st.error(f"Erro ao processar predicao: {str(e)}")
@@ -235,25 +344,38 @@ def render_dashboard_tab(repo: CsvDataRepository):
 
     col_metric1, col_metric2, col_metric3 = st.columns(3)
     with col_metric1:
-        st.metric("Total de Casos (2015-2025)", f"{int(df_full['casos'].sum()):,}".replace(",", "."))
+        st.metric("Total de Casos no Período", f"{int(df_full['casos'].sum()):,}".replace(",", "."))
     with col_metric2:
         st.metric("Municipios Monitorados", f"{df_full['codigo_ibge'].nunique()}")
     with col_metric3:
         st.metric("Periodo", f"{df_full['ano_mes'].min().strftime('%Y-%m')} a {df_full['ano_mes'].max().strftime('%Y-%m')}")
 
     st.subheader("Evolucao Temporal de Casos em SC")
-    st.line_chart(data=summary.set_index("ano_mes")[["casos_total"]])
+    render_labeled_chart(summary, "ano_mes", "casos_total", "line")
 
     st.subheader("Incidencia Media (por 100 mil hab.) ao Longo do Tempo")
-    st.area_chart(data=summary.set_index("ano_mes")[["incidencia_media"]])
+    render_labeled_chart(summary, "ano_mes", "incidencia_media", "area")
 
     st.subheader("Variaveis Climaticas ao Longo do Tempo")
     climate_cols = ["temperatura_media", "umidade_media", "precipitacao_total"]
-    st.line_chart(data=summary.set_index("ano_mes")[climate_cols])
+    climate = summary.melt(id_vars="ano_mes", value_vars=climate_cols, var_name="indicador", value_name="valor")
+    climate["indicador"] = climate["indicador"].map(CHART_LABELS)
+    st.altair_chart(alt.Chart(climate).mark_line(point=True).encode(
+        x=alt.X("ano_mes:T", title="Mês e ano"),
+        y=alt.Y("valor:Q", title="Valor (unidade indicada na legenda)"),
+        color=alt.Color("indicador:N", title="Indicador climático",
+                        legend=alt.Legend(orient="bottom", columns=1, labelLimit=0)),
+        tooltip=[
+            alt.Tooltip("ano_mes:T", title="Mês e ano", format="%m/%Y"),
+            alt.Tooltip("indicador:N", title="Indicador e unidade"),
+            alt.Tooltip("valor:Q", title="Valor", format=",.2f"),
+        ],
+    ).properties(height=320), width="stretch")
+    st.caption("Cada indicador tem sua própria unidade: temperatura em °C, umidade em % e chuva em mm.")
 
     st.subheader("Top 15 municipios com maior incidencia acumulada")
     top_mun = top_mun.reset_index(drop=True)
-    st.bar_chart(data=top_mun.set_index("nome_municipio")["incidencia_100k"])
+    render_labeled_chart(top_mun, "nome_municipio", "incidencia_100k", "bar", y_title="Soma das incidências mensais (casos por 100 mil habitantes)")
 
     st.divider()
     st.subheader("Analise por Municipio")
@@ -262,40 +384,33 @@ def render_dashboard_tab(repo: CsvDataRepository):
 
     if selected == "Todos":
         filtered_df = df_full.copy()
-        filtered_df["mes"] = filtered_df["ano_mes"].dt.month
-        filtered_df["casos_lag1"] = filtered_df.groupby("codigo_ibge")["casos"].shift(1).fillna(0.0)
-        filtered_df["incidencia_lag1"] = filtered_df.groupby("codigo_ibge")["incidencia_100k"].shift(1).fillna(0.0)
         selected_label = "Todos os municipios"
     else:
-        filtered_df = repo.filter_by_municipality(selected).sort_values("ano_mes").copy()
-        filtered_df["mes"] = filtered_df["ano_mes"].dt.month
-        filtered_df["casos_lag1"] = filtered_df["casos"].shift(1).fillna(0.0)
-        filtered_df["incidencia_lag1"] = filtered_df["incidencia_100k"].shift(1).fillna(0.0)
+        filtered_df = df_full.loc[df_full["nome_municipio"] == selected].copy()
         selected_label = selected
 
     col_m1, col_m2 = st.columns(2)
     with col_m1:
         st.metric("Total de Casos", f"{int(filtered_df['casos'].sum()):,}".replace(",", "."))
     with col_m2:
-        if selected == "Todos":
-            pop_total = int(filtered_df['populacao'].sum())
-        else:
-            pop_total = int(filtered_df['populacao'].iloc[-1]) if not filtered_df.empty else 0
-        st.metric("Populacao", f"{pop_total:,}".replace(",", "."))
+        pop_total, pop_period = DashboardAnalyticsUseCase.population_snapshot(filtered_df)
+        st.metric("Populacao", f"{int(pop_total):,}".replace(",", ".") if pd.notna(pop_total) else "Indisponível")
+        st.caption(f"Municípios com dados no período {pop_period:%Y-%m}; população contada uma vez por município.")
 
     st.write(f"#### Filtro ativo: {selected_label}")
 
     st.divider()
-    st.subheader("Todas as hipoteses testadas")
+    st.subheader("Exploração das Hipóteses")
+    st.caption("Gráficos exploratórios de associação; não constituem testes estatísticos ou evidência de causalidade.")
 
     hypothesis_text = {
         "H1 — Sazonalidade": "Compara a quantidade de casos por mes para identificar padroes sazonais e periodos de maior intensidade da dengue.",
         "H2 — Temperatura": "Avalia a relacao entre temperatura media e incidencia para verificar se calor mais elevado acompanha aumento da transmissao.",
-        "H3 — Precipitacao defasada": "Testa se chuvas anteriores influenciam a incidencia depois um intervalo de tempo, refletindo o ciclo ambiental da doenca.",
+        "H3 — Precipitacao defasada": "Compara a chuva acumulada no mês anterior com os casos por 100 mil habitantes no mês atual, no mesmo município.",
         "H4 — Umidade": "Verifica se a umidade relativa do ar se associa com a incidencia, pois influencia a sobrevivencia e atividade do mosquito.",
         "H5 — Densidade demografica": "Explora se municipios mais densamente povoados apresentam maior propagacao da dengue devido a maior proximidade entre pessoas.",
-        "H6 — Saneamento": "Analisa se indicadores de saneamento e remocao de DBO estao relacionados com diferencas na incidencia entre municipios.",
-        "H7 — Dependencia temporal": "Investiga se os casos do mes anterior ajudam a explicar a incidencia atual, indicando autocorrelacao no comportamento da doenca.",
+        "H6 — Saneamento": "Compara a remoção média de matéria orgânica no tratamento de esgoto com os casos por 100 mil habitantes. DBO significa demanda bioquímica de oxigênio; o percentual indica a remoção dessa carga no tratamento.",
+        "H7 — Dependencia temporal": "Compara o número de casos de dengue do mês anterior com o número de casos do mês atual, no mesmo município.",
     }
 
     if selected == "Todos":
@@ -308,18 +423,15 @@ def render_dashboard_tab(repo: CsvDataRepository):
         )
         temp_df = chart_df[["temperatura_media", "incidencia_100k"]].dropna().copy()
         precip_df = (
-            chart_df[["precipitacao_total", "incidencia_100k"]]
+            chart_df[["precipitacao_total_lag1", "incidencia_100k"]]
             .dropna()
             .copy()
-            .assign(precipitacao_total_lag1=lambda frame: frame["precipitacao_total"].shift(1).fillna(0))
         )
         umid_df = chart_df[["umidade_media", "incidencia_100k"]].dropna().copy()
         dens_df = chart_df[["densidade_demografica", "incidencia_100k"]].dropna().copy()
         saneamento_df = chart_df[["remocao_dbo_media", "incidencia_100k"]].dropna().copy() if "remocao_dbo_media" in chart_df.columns else None
         lag_df = (
-            chart_df.sort_values(["codigo_ibge", "ano_mes"]).copy()
-            .assign(casos_lag1=lambda frame: frame.groupby("codigo_ibge")["casos"].transform(lambda series: series.shift(1).fillna(0)))
-            [["casos", "casos_lag1"]]
+            chart_df[["casos", "casos_lag1"]]
             .dropna()
             .copy()
         )
@@ -332,16 +444,16 @@ def render_dashboard_tab(repo: CsvDataRepository):
             .rename(columns={"mes": "Mes", "casos": "Casos"})
         )
         temp_df = chart_df[["temperatura_media", "incidencia_100k"]].dropna().copy()
-        precip_df = chart_df[["precipitacao_total", "incidencia_100k"]].dropna().copy()
+        precip_df = chart_df[["precipitacao_total_lag1", "incidencia_100k"]].dropna().copy()
         umid_df = chart_df[["umidade_media", "incidencia_100k"]].dropna().copy()
         dens_df = chart_df[["densidade_demografica", "incidencia_100k"]].dropna().copy()
         saneamento_df = chart_df[["remocao_dbo_media", "incidencia_100k"]].dropna().copy() if "remocao_dbo_media" in chart_df.columns else None
         lag_df = chart_df[["casos", "casos_lag1"]].dropna().copy()
 
     charts = [
-        ("H1 — Sazonalidade", hypothesis_text["H1 — Sazonalidade"], season_df.set_index("Mes")["Casos"], "bar"),
+        ("H1 — Sazonalidade", hypothesis_text["H1 — Sazonalidade"], season_df, "bar"),
         ("H2 — Temperatura", hypothesis_text["H2 — Temperatura"], temp_df, "scatter"),
-        ("H3 — Precipitacao defasada", hypothesis_text["H3 — Precipitacao defasada"], precip_df[["precipitacao_total", "incidencia_100k"]].copy(), "scatter"),
+        ("H3 — Precipitacao defasada", hypothesis_text["H3 — Precipitacao defasada"], precip_df, "scatter"),
         ("H4 — Umidade", hypothesis_text["H4 — Umidade"], umid_df, "scatter"),
         ("H5 — Densidade demografica", hypothesis_text["H5 — Densidade demografica"], dens_df, "scatter"),
         ("H6 — Saneamento", hypothesis_text["H6 — Saneamento"], saneamento_df, "scatter"),
@@ -357,14 +469,15 @@ def render_dashboard_tab(repo: CsvDataRepository):
                 st.info("Dados nao disponiveis para esta hipotese no conjunto atual.")
                 continue
             if chart_type == "bar":
-                st.bar_chart(data)
+                render_labeled_chart(data, "Mes", "Casos", "bar")
             else:
+                data = data.join(chart_df[["nome_municipio", "ano_mes"]])
                 if title == "H3 — Precipitacao defasada":
-                    st.scatter_chart(data=data, x="precipitacao_total", y="incidencia_100k")
+                    render_labeled_chart(data, "precipitacao_total_lag1", "incidencia_100k", "scatter")
                 elif title == "H7 — Dependencia temporal":
-                    st.scatter_chart(data=data, x="casos_lag1", y="casos")
+                    render_labeled_chart(data, "casos_lag1", "casos", "scatter")
                 else:
-                    st.scatter_chart(data=data, x=data.columns[0], y=data.columns[1])
+                    render_labeled_chart(data, data.columns[0], data.columns[1], "scatter")
 
     st.divider()
     st.subheader("Detalhamento dos fatores por periodo")
@@ -408,12 +521,22 @@ def render_dashboard_tab(repo: CsvDataRepository):
                 "casos_lag1",
                 "incidencia_lag1",
             ]].copy()
+            valid = risk_source[list(SIMULATOR_FIELD_MAP)].apply(
+                lambda series: pd.to_numeric(series, errors="coerce").map(math.isfinite)
+            ).all(axis=1)
+            risk_source = risk_source.loc[valid]
             risk_inputs = [row_to_input(row) for _, row in risk_source.iterrows()]
             risk_results = get_use_case().execute_batch(risk_inputs)
             detail_table = detail_df.copy()
-            detail_table["Risco"] = [result.risk_level.value for result in risk_results]
-            detail_table["Probabilidade"] = [f"{result.probability:.2%}" for result in risk_results]
-            detail_table["Simulador"] = risk_source.apply(build_simulator_url, axis=1)
+            detail_table["Risco"] = "Dados insuficientes"
+            detail_table["Probabilidade de risco alto"] = "Indisponível"
+            detail_table["Simulador"] = filtered_df.apply(build_simulator_url, axis=1)
+            if risk_results:
+                detail_table.loc[valid, "Risco"] = [result.risk_level.value for result in risk_results]
+                detail_table.loc[valid, "Probabilidade de risco alto"] = [f"{result.probability:.2%}" for result in risk_results]
+            if not valid.all():
+                st.info(f"{int((~valid).sum())} registros sem classificação: faltam entradas válidas ou dados do mês calendário anterior. Abra no simulador para preencher os dados faltantes.")
+            detail_table.insert(0, "Município", filtered_df["nome_municipio"])
             st.dataframe(detail_table.sort_values("Periodo", ascending=False), width="stretch", hide_index=True, height=400, column_config={
                 "Simulador": st.column_config.LinkColumn("Simulador", display_text="Abrir no simulador", max_chars=80)
             })
@@ -431,7 +554,10 @@ def main():
         render_prediction_tab(use_case)
 
     with tab_dashboard:
-        render_dashboard_tab(repo)
+        try:
+            render_dashboard_tab(repo)
+        except FileNotFoundError:
+            st.warning("Base analítica não encontrada. Disponibilize data/processed/base_analitica_sc.csv para consultar o painel. O simulador continua disponível.")
 
 
 if __name__ == "__main__":

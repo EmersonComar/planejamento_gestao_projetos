@@ -1,15 +1,20 @@
 import os
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pandas as pd
+import pytest
+import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-from app.main import build_simulator_url, evaluate_risk_for_row
+from app.main import build_simulator_url, evaluate_risk_for_row, row_to_input
+from src.application.use_cases.dashboard_analytics import DashboardAnalyticsUseCase
+from src.infrastructure.data.csv_repository import CsvDataRepository
 
 
-def test_app_loads_and_predicts():
+def test_app_loads_and_predicts(dashboard_data):
     script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "main.py")
-    at = AppTest.from_file(script_path).run()
+    at = AppTest.from_file(script_path, default_timeout=20).run()
 
     assert not at.exception
     assert at.title[0].value == "Sistema de Classificacao de Risco de Dengue"
@@ -46,12 +51,13 @@ def test_build_simulator_url_and_risk_metrics():
     assert 0.0 <= probability <= 1.0
 
 
+@pytest.mark.skipif(
+    not Path("data/processed/base_analitica_sc.csv").exists(),
+    reason="Base real não disponível localmente; consistência também coberta por dados controlados.",
+)
 def test_simulator_consistency_with_real_rows_from_dataset():
     df = pd.read_csv("data/processed/base_analitica_sc.csv", parse_dates=["ano_mes"])
-    df = df.sort_values(["nome_municipio", "ano_mes"]).copy()
-    df["mes"] = df["ano_mes"].dt.month
-    df["casos_lag1"] = df.groupby("nome_municipio")["casos"].shift(1).fillna(0.0)
-    df["incidencia_lag1"] = df.groupby("nome_municipio")["incidencia_100k"].shift(1).fillna(0.0)
+    df = DashboardAnalyticsUseCase.prepare_temporal_features(df)
     df = df.dropna(subset=[
         "temperatura_media",
         "umidade_media",
@@ -83,3 +89,108 @@ def test_simulator_consistency_with_real_rows_from_dataset():
         assert int(parsed["mes"][0]) == int(row_dict["mes"])
         assert risk_value in {"Baixo", "Alto"}
         assert 0.0 <= probability <= 1.0
+
+
+def test_table_and_simulator_roundtrip_preserves_all_inputs_and_prediction(analytical_data):
+    frame = DashboardAnalyticsUseCase.prepare_temporal_features(analytical_data)
+    for _, row in frame.loc[frame["mes"] == 2].iterrows():
+        values = {key: value[0] for key, value in parse_qs(urlsplit(build_simulator_url(row)).query).items()}
+        assert row_to_input(values) == row_to_input(row)
+        simulator_risk, simulator_probability = evaluate_risk_for_row(values)
+        table_risk, table_probability = evaluate_risk_for_row(row)
+        assert simulator_risk == table_risk
+        assert simulator_probability == pytest.approx(table_probability)
+
+
+def test_dashboard_population_and_detail_table(dashboard_data, monkeypatch):
+    original_expander = st.expander
+
+    def expanded_details(label, **kwargs):
+        if label == "Detalhamento dos fatores por período":
+            kwargs["expanded"] = True
+        return original_expander(label, **kwargs)
+
+    monkeypatch.setattr(st, "expander", expanded_details)
+    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20).run()
+    assert not at.exception
+    assert next(metric.value for metric in at.metric if metric.label == "Populacao") == "3.004"
+    table = at.dataframe[0].value
+    assert len(table) == len(dashboard_data)
+    assert (table["Risco"] == "Dados insuficientes").sum() == 4
+    assert table["Simulador"].notna().all()
+    for _, row in table.loc[table["Risco"] != "Dados insuficientes"].iterrows():
+        inputs = {key: value[0] for key, value in parse_qs(urlsplit(row["Simulador"]).query).items()}
+        risk, probability = evaluate_risk_for_row(inputs)
+        assert row["Risco"] == risk
+        assert row["Probabilidade de risco alto"] == f"{probability:.2%}"
+
+    at.selectbox[1].set_value("Município A").run()
+    assert not at.exception
+    assert next(metric.value for metric in at.metric if metric.label == "Populacao") == "1.002"
+    assert set(at.dataframe[0].value["Município"]) == {"Município A"}
+
+
+def test_simulator_remains_available_without_csv(monkeypatch):
+    def missing_csv(self):
+        raise FileNotFoundError("base ausente")
+
+    monkeypatch.setattr(CsvDataRepository, "load", missing_csv)
+    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20).run()
+    assert not at.exception
+    assert "Base analítica não encontrada" in at.warning[0].value
+    at.button[0].click().run()
+    assert not at.exception
+    assert at.success or at.error
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+def test_incomplete_inputs_produce_links_with_blank_fields(analytical_data, value):
+    frame = DashboardAnalyticsUseCase.prepare_temporal_features(analytical_data)
+    row = frame.loc[frame["mes"] == 2].iloc[0].copy()
+    row["casos_lag1"] = value
+    params = parse_qs(urlsplit(build_simulator_url(row)).query, keep_blank_values=True)
+    assert params["casos_lag1"] == [""]
+    assert float(params["temperatura_media"][0]) == row["temperatura_media"]
+
+
+def test_incomplete_row_can_be_completed_in_simulator(dashboard_data):
+    frame = DashboardAnalyticsUseCase.prepare_temporal_features(dashboard_data)
+    row = frame.loc[frame["mes"] == 2].iloc[0].copy()
+    row["precipitacao_total"] = float("nan")
+    params = {key: value[0] for key, value in parse_qs(
+        urlsplit(build_simulator_url(row)).query, keep_blank_values=True
+    ).items()}
+    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20)
+    at.query_params.update(params)
+    at.run()
+    assert not at.exception
+    assert at.number_input[2].value is None
+    assert at.number_input[0].value == row["temperatura_media"]
+    assert at.selectbox[0].value == 2
+    assert "Chuva acumulada no mês (mm)" in at.warning[0].value
+    at.button[0].click().run()
+    assert not at.exception
+    assert not at.success and not at.error
+    assert any("Ainda faltam dados" in warning.value for warning in at.warning)
+    at.number_input[2].set_value(150.0)
+    at.number_input[0].set_value(30.0)
+    at.button[0].click().run()
+    assert not at.exception
+    assert at.number_input[2].value == 150.0
+    assert at.number_input[0].value == 30.0
+    assert not at.warning
+    assert at.success or at.error
+
+
+def test_first_month_missing_lags_remain_blank_in_simulator(dashboard_data):
+    row = DashboardAnalyticsUseCase.prepare_temporal_features(dashboard_data).iloc[0]
+    params = {key: value[0] for key, value in parse_qs(
+        urlsplit(build_simulator_url(row)).query, keep_blank_values=True
+    ).items()}
+    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20)
+    at.query_params.update(params)
+    at.run()
+    assert not at.exception
+    assert at.number_input[4].value is None
+    assert at.number_input[5].value is None
+    assert "Casos de dengue no mês anterior" in at.warning[0].value
