@@ -7,7 +7,7 @@ import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-from app.main import build_simulator_url, evaluate_risk_for_row, row_to_input
+from app.main import build_simulator_coverage, build_simulator_url, evaluate_risk_for_row, row_to_input
 from src.application.use_cases.dashboard_analytics import DashboardAnalyticsUseCase
 from src.infrastructure.data.csv_repository import CsvDataRepository
 
@@ -18,6 +18,9 @@ def test_app_loads_and_predicts(dashboard_data):
 
     assert not at.exception
     assert at.title[0].value == "Sistema de Classificacao de Risco de Dengue"
+    assert next(m.value for m in at.metric if m.label == "Base gerada em") == "Não registrada"
+    assert next(m.value for m in at.metric if m.label == "Último mês disponível na base") == "04/2025"
+    assert next(m.value for m in at.metric if m.label == "Atualização dos dados") == "Manual"
 
     at.number_input[0].set_value(30.0)
 
@@ -253,3 +256,44 @@ def test_valid_boundary_values_and_negative_temperature(analytical_data, humidit
     assert inputs.temperatura_media == -5.0
     assert inputs.umidade_media == humidity
     assert inputs.casos_lag1 == 0.0
+
+
+def test_coverage_identifies_missing_invalid_and_real_zero(analytical_data):
+    frame = DashboardAnalyticsUseCase.prepare_temporal_features(analytical_data)
+    feb_index = frame.loc[(frame.codigo_ibge == 1) & (frame.mes == 2)].index[0]
+    frame.loc[feb_index, "precipitacao_total"] = float("nan")
+    frame.loc[feb_index, "umidade_media"] = 101.0
+    frame.loc[frame.mes == 1, "precipitacao_total"] = 0.0
+    valid, summary, pending = build_simulator_coverage(frame)
+    assert valid.sum() == 1
+    summary = summary.set_index("Campo")
+    assert summary.loc["Chuva acumulada no mês (mm)", "Dados ausentes"] == 1
+    assert summary.loc["Chuva acumulada no mês (mm)", "Registros válidos"] == 5
+    assert summary.loc["Umidade média do ar (%)", "Valores inválidos"] == 1
+    assert "Chuva acumulada no mês (mm) (ausente)" in pending.loc[feb_index]
+    assert "Umidade média do ar (%) (inválido)" in pending.loc[feb_index]
+    assert pending.loc[valid].eq("Nenhum").all()
+
+
+def test_dashboard_coverage_and_pending_fields_follow_municipality(dashboard_data, monkeypatch):
+    original_expander = st.expander
+    def opened_details(label, **kwargs):
+        if label == "Detalhamento dos fatores por período":
+            kwargs["expanded"] = True
+        return original_expander(label, **kwargs)
+    monkeypatch.setattr(st, "expander", opened_details)
+    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20).run()
+    assert not at.exception
+    assert next(m.value for m in at.metric if m.label == "Registros completos para o simulador") == "2 de 6"
+    assert next(m.value for m in at.metric if m.label == "Registros para preencher ou corrigir") == "4"
+    coverage = at.table[0].value.set_index("Campo")
+    assert coverage.loc["Casos de dengue no mês anterior", "Dados ausentes"] == 4
+    table = at.dataframe[0].value
+    assert table.loc[table.Risco == "Dados insuficientes", "Dados para preencher ou corrigir"].str.contains("Casos de dengue no mês anterior").all()
+    assert table.loc[table.Risco != "Dados insuficientes", "Dados para preencher ou corrigir"].eq("Nenhum").all()
+    assert table.Simulador.notna().all()
+    at.selectbox[1].set_value("Município A").run()
+    assert not at.exception
+    assert next(m.value for m in at.metric if m.label == "Meses completos para o simulador") == "1 de 3"
+    assert next(m.value for m in at.metric if m.label == "Meses para preencher ou corrigir") == "2"
+    assert at.table[0].value.set_index("Campo").loc["Casos de dengue no mês anterior", "Dados ausentes"] == 2

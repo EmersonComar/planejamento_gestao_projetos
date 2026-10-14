@@ -165,6 +165,31 @@ def is_valid_simulator_value(key, value):
         return False
 
 
+def build_simulator_coverage(frame):
+    inputs = frame[list(SIMULATOR_FIELD_MAP)]
+    valid_fields = inputs.apply(
+        lambda series: series.map(lambda value: is_valid_simulator_value(series.name, value))
+    )
+    absent_fields = inputs.isna() | inputs.map(
+        lambda value: isinstance(value, str) and not value.strip()
+    )
+    invalid_fields = ~valid_fields & ~absent_fields
+    summary = pd.DataFrame({
+        "Campo": [CHART_LABELS[key] for key in SIMULATOR_FIELD_MAP],
+        "Registros válidos": valid_fields.sum().to_numpy(),
+        "Dados ausentes": absent_fields.sum().to_numpy(),
+        "Valores inválidos": invalid_fields.sum().to_numpy(),
+    })
+    pending = pd.Series({
+        index: "; ".join(
+            f"{CHART_LABELS[key]} ({'ausente' if absent_fields.at[index, key] else 'inválido'})"
+            for key in SIMULATOR_FIELD_MAP if not valid_fields.at[index, key]
+        ) or "Nenhum"
+        for index in inputs.index
+    }, dtype="str")
+    return valid_fields.all(axis=1), summary, pending
+
+
 def row_to_input(row):
     values = {key: parse_simulator_value(key, row.get(key)) for key in SIMULATOR_FIELD_MAP}
     return DengueRiskInput(**values)
@@ -363,6 +388,18 @@ def render_dashboard_tab(repo: CsvDataRepository):
 
     st.subheader("Visao Geral do Estado de Santa Catarina")
 
+    generated_at = repo.get_generation_time()
+    col_generation, col_latest, col_update = st.columns(3)
+    with col_generation:
+        st.metric("Base gerada em", generated_at.strftime("%d/%m/%Y %H:%M") if generated_at is not None else "Não registrada")
+        st.caption("Horário de Brasília. Data registrada durante a geração do CSV." if generated_at is not None else "Esta base não possui uma data de geração registrada.")
+    with col_latest:
+        st.metric("Último mês disponível na base", df_full["ano_mes"].max().strftime("%m/%Y"))
+        st.caption("Alguns municípios ou campos podem ter dados faltantes nesse mês.")
+    with col_update:
+        st.metric("Atualização dos dados", "Manual")
+        st.caption("Novos períodos aparecem após gerar e disponibilizar uma nova base.")
+
     col_metric1, col_metric2, col_metric3 = st.columns(3)
     with col_metric1:
         st.metric("Total de Casos no Período", f"{int(df_full['casos'].sum()):,}".replace(",", "."))
@@ -419,6 +456,19 @@ def render_dashboard_tab(repo: CsvDataRepository):
         st.caption(f"Municípios com dados no período {pop_period:%Y-%m}; população contada uma vez por município.")
 
     st.write(f"#### Filtro ativo: {selected_label}")
+
+    valid_inputs, coverage, pending_inputs = build_simulator_coverage(filtered_df)
+    st.subheader("Cobertura dos dados para o simulador")
+    unit = "Registros" if selected == "Todos" else "Meses"
+    complete_column, pending_column = st.columns(2)
+    with complete_column:
+        st.metric(f"{unit} completos para o simulador", f"{int(valid_inputs.sum())} de {len(filtered_df)}")
+    with pending_column:
+        st.metric(f"{unit} para preencher ou corrigir", int((~valid_inputs).sum()))
+    st.caption("Cada registro corresponde a um município em um mês. O resumo considera as entradas necessárias ao simulador; zero é um valor válido.")
+    st.table(coverage)
+    if not valid_inputs.all():
+        st.info("A tabela de detalhes indica os campos pendentes de cada mês. Abra no simulador para preenchê-los ou corrigi-los. Os dados do mês anterior ficam ausentes quando esse mês não está disponível na base.")
 
     st.divider()
     st.subheader("Exploração das Hipóteses")
@@ -542,15 +592,14 @@ def render_dashboard_tab(repo: CsvDataRepository):
                 "casos_lag1",
                 "incidencia_lag1",
             ]].copy()
-            valid = risk_source[list(SIMULATOR_FIELD_MAP)].apply(
-                lambda series: series.map(lambda value: is_valid_simulator_value(series.name, value))
-            ).all(axis=1)
+            valid = valid_inputs
             risk_source = risk_source.loc[valid]
             risk_inputs = [row_to_input(row) for _, row in risk_source.iterrows()]
             risk_results = get_use_case().execute_batch(risk_inputs)
             detail_table = detail_df.copy()
             detail_table["Risco"] = "Dados insuficientes"
             detail_table["Probabilidade de risco alto"] = "Indisponível"
+            detail_table.insert(0, "Dados para preencher ou corrigir", pending_inputs)
             detail_table["Simulador"] = filtered_df.apply(build_simulator_url, axis=1)
             if risk_results:
                 detail_table.loc[valid, "Risco"] = [result.risk_level.value for result in risk_results]

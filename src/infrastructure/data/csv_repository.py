@@ -1,4 +1,7 @@
 import pandas as pd
+import hashlib
+import json
+from pathlib import Path
 from typing import List
 from src.domain.ports import IDataRepository
 
@@ -16,6 +19,25 @@ class CsvDataRepository(IDataRepository):
     def get_municipalities(self) -> List[str]:
         df = self.load()
         return sorted(df["nome_municipio"].unique().tolist())
+
+    def get_generation_time(self) -> pd.Timestamp | None:
+        """Only display a recorded generation time belonging to this exact CSV."""
+        csv_path = Path(self._file_path)
+        metadata_path = csv_path.with_suffix(".metadata.json")
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if not isinstance(metadata, dict):
+                return None
+            with csv_path.open("rb") as csv_file:
+                checksum = hashlib.file_digest(csv_file, "sha256").hexdigest()
+            if metadata.get("csv_sha256") != checksum:
+                return None
+            generated_at = pd.Timestamp(metadata["generated_at"])
+            if pd.isna(generated_at) or generated_at.tzinfo is None:
+                return None
+            return generated_at.tz_convert("America/Sao_Paulo")
+        except (OSError, ValueError, TypeError, KeyError):
+            return None
 
     def filter_by_municipality(self, name: str) -> pd.DataFrame:
         df = self.load()
