@@ -1,4 +1,5 @@
 import os
+import sys
 import math
 from textwrap import wrap
 from urllib.parse import urlencode
@@ -6,6 +7,9 @@ from urllib.parse import urlencode
 import altair as alt
 import pandas as pd
 import streamlit as st
+
+# Community Cloud adds the entrypoint directory, so include the repository root.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.application.use_cases.dashboard_analytics import DashboardAnalyticsUseCase
 from src.application.use_cases.predict_risk import PredictRiskUseCase
