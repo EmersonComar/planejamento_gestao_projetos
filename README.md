@@ -25,10 +25,17 @@ O conhecimento científico sobre a doença e a biologia do mosquito orienta a co
 
 ### Sprint 3 — MVP do Produto
 
+- **Aplicação publicada:** [MVP Dengue SC](https://dengue-sc-mvp.streamlit.app/).
 - Aplicação web em Streamlit integrada ao modelo baseline.
 - Simulador de risco com entradas climáticas, demográficas e temporais; apresenta classe de risco, probabilidade e fatores de importância global do modelo.
 - Links da tabela de análise preenchem o simulador com os valores da respectiva linha.
 - Testes automatizados cobrem o carregamento da aplicação, as métricas de risco e a consistência entre dados reais, tabela e simulador.
+
+### Publicação no Streamlit Community Cloud
+
+A aplicação publicada usa o fork [grgoryolive/planejamento_gestao_projetos](https://github.com/grgoryolive/planejamento_gestao_projetos), branch `main`, com entrada em `app/main.py`. Atualizações desse fork são aplicadas automaticamente pelo Streamlit.
+
+Na nuvem, selecione **Python 3.13** em **Advanced settings**. As dependências de execução estão em `app/requirements.txt`; essa configuração foi validada no deploy, preservando o `scikit-learn==1.6.1` usado pelo modelo. O ambiente de desenvolvimento local abaixo permanece em Python 3.14 ou superior.
 
 ## Executar a Aplicação
 
