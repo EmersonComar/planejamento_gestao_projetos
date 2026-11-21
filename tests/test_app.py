@@ -226,3 +226,14 @@ def test_simulator_without_trained_model_shows_message(monkeypatch):
     assert not at.exception
     assert "ainda não foi treinado" in at.error[0].value
     assert not at.slider and not at.button
+
+
+def test_home_lists_epidemic_municipalities(repo):
+    at = open_app()
+    at.segmented_control(key="inicio_atalho").set_value("Toda a série").run()
+    assert not at.exception
+    expected = repo.ranking(limit=10_000).query("meses_incidencia_alta > 0")
+    listed = next(df.value for df in at.dataframe if "meses_incidencia_alta" in df.value.columns)
+    assert set(listed["nome_municipio"]) == set(expected["nome_municipio"])
+    assert listed["meses_incidencia_alta"].is_monotonic_decreasing
+    assert (listed["incidencia_pico_mensal"] >= 300).all()  # o pico mensal é o que se compara com o limiar

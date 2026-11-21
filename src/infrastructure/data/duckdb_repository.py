@@ -122,13 +122,16 @@ class DuckDbAnalyticsRepository(IAnalyticsRepository):
         return self.query(sql + " ORDER BY nome_municipio", [period])
 
     def ranking(self, start=None, end=None, limit: int = 10) -> pd.DataFrame:
-        """Municípios com mais casos no intervalo; incidência sobre a população média do intervalo."""
+        """Municípios com mais casos no intervalo: incidência acumulada (sobre a população média), meses em nível
+        epidêmico e maior incidência mensal (a que é comparada com o limiar epidêmico)."""
         where, params = self._filters(None, start, end)
         return self.query(f"""
             SELECT codigo_ibge, ANY_VALUE(nome_municipio) AS nome_municipio,
                    SUM(casos)::BIGINT AS casos,
                    SUM(casos) * 1e5 / NULLIF(AVG(populacao), 0) AS incidencia_100k,
-                   COUNT(*) FILTER (WHERE incidencia_alta_observada) AS meses_incidencia_alta
+                   COUNT(*) FILTER (WHERE incidencia_alta_observada) AS meses_incidencia_alta,
+                   MAX(incidencia_100k) AS incidencia_pico_mensal,
+                   ROUND(AVG(populacao))::BIGINT AS populacao
             FROM mensal {where}
             GROUP BY codigo_ibge
             ORDER BY casos DESC, nome_municipio

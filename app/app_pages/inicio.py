@@ -41,12 +41,44 @@ with cards[1]:
         help="Casos do período para cada 100 mil moradores do estado. Permite comparar períodos com populações diferentes.",
     )
 with cards[2]:
-    st.metric(
-        "Municípios em nível epidêmico", fmt.num(epidemic_municipalities),
-        border=True, height="stretch",
-        help=f"Municípios que tiveram pelo menos um mês com {fmt.num(threshold)} casos ou mais por 100 mil habitantes "
-             f"no período (de {meta['municipios']}).",
-    )
+    with st.container(border=True, height="stretch", gap="small"):
+        st.metric(
+            "Municípios em nível epidêmico", fmt.num(epidemic_municipalities),
+            help=f"Municípios que, em pelo menos um mês do período, tiveram {fmt.num(threshold)} casos ou mais para "
+                 f"cada 100 mil habitantes (de {meta['municipios']} municípios).",
+        )
+        if epidemic_municipalities:
+            epidemic = (by_municipality.loc[by_municipality["meses_incidencia_alta"] > 0,
+                                            ["nome_municipio", "meses_incidencia_alta", "incidencia_pico_mensal",
+                                             "casos", "populacao"]]
+                        .sort_values(["meses_incidencia_alta", "incidencia_pico_mensal"], ascending=False))
+            noun = "município" if epidemic_municipalities == 1 else "municípios"
+            example = epidemic.iloc[0]
+            with st.popover("Ver municípios", icon=":material/list:", width="stretch"):
+                st.markdown(f"**{fmt.num(epidemic_municipalities)} {noun} em nível epidêmico** ({label})")
+                st.caption(
+                    f"O critério é ter, em algum mês, {fmt.num(threshold)} casos ou mais **para cada 100 mil habitantes**, "
+                    f"e não {fmt.num(threshold)} casos. Em {example['nome_municipio']}, com {fmt.num(example['populacao'])} "
+                    f"habitantes, isso equivale a cerca de {fmt.num(threshold * example['populacao'] / 1e5)} casos num mês."
+                )
+                st.dataframe(
+                    epidemic.drop(columns="populacao").round({"incidencia_pico_mensal": 0}),
+                    hide_index=True, height=min(420, 38 + 35 * len(epidemic)),
+                    column_config={
+                        "nome_municipio": st.column_config.TextColumn("Município"),
+                        "meses_incidencia_alta": st.column_config.NumberColumn(
+                            "Meses", format="localized", width="small",
+                            help=f"Meses com {fmt.num(threshold)} casos ou mais por 100 mil habitantes."),
+                        "incidencia_pico_mensal": st.column_config.NumberColumn(
+                            "Pico por 100 mil", format="localized",
+                            help="Maior número de casos por 100 mil habitantes em um único mês do período."),
+                        "casos": st.column_config.NumberColumn(
+                            "Casos", format="localized", width="small", help="Total de casos prováveis no período."),
+                    },
+                    alt=f"Municípios em nível epidêmico de {label}",
+                )
+        else:
+            st.caption("Nenhum município chegou ao nível epidêmico no período.")
 with cards[3]:
     st.metric(
         "Mês com mais casos", fmt.month_year(peak["ano_mes"], short=True),
