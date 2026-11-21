@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 import pandas as pd
 from src.domain.entities import DengueRiskInput, DengueRiskOutput
 
@@ -18,19 +18,38 @@ class IModelPredictor(ABC):
         pass
 
 
-class IDataRepository(ABC):
-    @abstractmethod
-    def load(self) -> pd.DataFrame:
-        pass
+class IAnalyticsRepository(ABC):
+    """Consultas analíticas sobre a base pré-calculada (histórico, cenários, geografia)."""
 
     @abstractmethod
-    def get_municipalities(self) -> List[str]:
-        pass
+    def metadata(self) -> dict: ...
 
     @abstractmethod
-    def filter_by_municipality(self, name: str) -> pd.DataFrame:
-        pass
+    def periods(self) -> list[pd.Timestamp]: ...
 
     @abstractmethod
-    def get_state_summary_by_period(self) -> pd.DataFrame:
-        pass
+    def scenario_periods(self) -> list[pd.Timestamp]: ...
+
+    @abstractmethod
+    def municipalities(self) -> pd.DataFrame: ...
+
+    @abstractmethod
+    def geojson(self) -> dict: ...
+
+    @abstractmethod
+    def monthly(self, codigo_ibge: Optional[int] = None, start=None, end=None) -> pd.DataFrame: ...
+
+    @abstractmethod
+    def state_monthly(self, start=None, end=None) -> pd.DataFrame: ...
+
+    @abstractmethod
+    def map_snapshot(self, period) -> pd.DataFrame: ...
+
+    @abstractmethod
+    def ranking(self, start=None, end=None, limit: int = 10) -> pd.DataFrame: ...
+
+    @abstractmethod
+    def calendar_profile(self, codigo_ibge: Optional[int] = None) -> pd.DataFrame: ...
+
+    @abstractmethod
+    def month_year_matrix(self, codigo_ibge: Optional[int] = None) -> pd.DataFrame: ...

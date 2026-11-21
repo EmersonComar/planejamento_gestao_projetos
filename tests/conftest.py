@@ -24,9 +24,34 @@ def analytical_data():
     return frame
 
 
-@pytest.fixture
-def dashboard_data(monkeypatch, analytical_data):
-    from src.infrastructure.data.csv_repository import CsvDataRepository
+def _square(lon, lat, size=0.1):
+    return {"type": "Polygon", "coordinates": [[
+        [lon, lat], [lon + size, lat], [lon + size, lat + size], [lon, lat + size], [lon, lat],
+    ]]}
 
-    monkeypatch.setattr(CsvDataRepository, "load", lambda self: analytical_data.copy())
-    return analytical_data
+
+@pytest.fixture
+def app_data_root(tmp_path, analytical_data):
+    """Raiz de projeto mínima (CSV, modelo real, malha e regiões) com a base do app gerada."""
+    import json
+    import shutil
+    from pathlib import Path
+
+    from src.infrastructure.data.app_data_builder import AppDataPaths, build_app_data
+
+    paths = AppDataPaths(tmp_path)
+    for path in (paths.csv, paths.model, paths.geojson):
+        path.parent.mkdir(parents=True, exist_ok=True)
+    analytical_data.to_csv(paths.csv, index=False)
+    shutil.copy(Path(__file__).resolve().parents[1] / "models" / "modelo_risco_dengue.pkl", paths.model)
+    paths.geojson.write_text(json.dumps({"type": "FeatureCollection", "features": [
+        {"type": "Feature", "id": 1, "properties": {"codigo_ibge": 1, "nome": "Município A"}, "geometry": _square(-49.0, -27.0)},
+        {"type": "Feature", "id": 2, "properties": {"codigo_ibge": 2, "nome": "Município B"}, "geometry": _square(-50.0, -26.5)},
+    ]}))
+    pd.DataFrame({
+        "codigo_ibge": [1, 2], "nome": ["Município A", "Município B"],
+        "mesorregiao": ["Norte", "Oeste"], "microrregiao": ["M1", "M2"],
+        "regiao_intermediaria": ["I1", "I2"], "regiao_imediata": ["R1", "R2"],
+    }).to_csv(paths.regions, index=False)
+    build_app_data(tmp_path)
+    return tmp_path

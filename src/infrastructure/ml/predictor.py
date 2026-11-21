@@ -13,6 +13,23 @@ class SklearnPredictor(IModelPredictor):
         if not 0.0 <= self._threshold <= 1.0:
             raise ValueError("Limiar de decisão do modelo deve estar entre 0 e 1.")
 
+    @property
+    def model_name(self) -> str:
+        return str(self._model_data.get("nome_modelo", type(self._model).__name__))
+
+    @property
+    def features(self) -> list[str]:
+        return list(self._features)
+
+    @property
+    def threshold(self) -> float:
+        return self._threshold
+
+    @property
+    def high_incidence_threshold(self) -> float | None:
+        value = self._model_data.get("limiar_alto_risco_incidencia")
+        return None if value is None else float(value)
+
     def predict(self, data: DengueRiskInput) -> DengueRiskOutput:
         return self.predict_batch([data])[0]
 
@@ -38,7 +55,14 @@ class SklearnPredictor(IModelPredictor):
             
         return results
 
+    @property
+    def metrics(self) -> dict:
+        return dict(self._model_data.get("metricas") or {})
+
     def get_global_feature_importance(self) -> Optional[Dict[str, float]]:
+        stored = self._model_data.get("importancia_global")
+        if stored:
+            return {key: float(value) for key, value in stored.items()}
         model_to_inspect = self._model
         if hasattr(self._model, "named_steps"):
             model_to_inspect = list(self._model.named_steps.values())[-1]

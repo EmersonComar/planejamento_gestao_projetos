@@ -1,28 +1,40 @@
-import os
-import pytest
-import numpy as np
+import math
 from unittest.mock import Mock
+
+import numpy as np
+import pytest
+
 from src.domain.entities import DengueRiskInput, RiskLevel
 from src.infrastructure.ml.predictor import SklearnPredictor
 
-def test_model_prediction_successful():
-    model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models", "modelo_baseline_risco_dengue.pkl")
-    predictor = SklearnPredictor(model_path)
-    
-    input_data = DengueRiskInput(
-        temperatura_media=25.0,
-        umidade_media=70.0,
-        precipitacao_total=100.0,
-        densidade_demografica=100.0,
-        mes=1,
-        casos_lag1=10.0,
-        incidencia_lag1=5.0
-    )
-    
-    result = predictor.predict(input_data)
-    
-    assert result.risk_level in [RiskLevel.LOW, RiskLevel.HIGH]
+MODEL = "models/modelo_risco_dengue.pkl"
+
+
+def test_model_predicts_with_required_inputs_only():
+    predictor = SklearnPredictor(MODEL)
+    result = predictor.predict(DengueRiskInput(25.0, 70.0, 100.0, 100.0, 1, 10.0, 5.0))
+    assert result.risk_level in (RiskLevel.LOW, RiskLevel.HIGH)
     assert 0.0 <= result.probability <= 1.0
+
+
+def test_model_artifact_describes_itself():
+    predictor = SklearnPredictor(MODEL)
+    assert set(predictor.features) <= set(DengueRiskInput.__dataclass_fields__)
+    assert 0 < predictor.threshold < 1
+    assert predictor.high_incidence_threshold == 300
+    importance = predictor.get_global_feature_importance()
+    assert set(importance) == set(predictor.features) and sum(importance.values()) == pytest.approx(1, abs=1e-3)
+    metrics = predictor.metrics
+    assert metrics["limiar_decisao"] == predictor.threshold
+    assert {row["ano_teste"] for row in metrics["avaliacao_por_ano"]} >= {2023, 2024, 2025}
+
+
+def test_more_recent_cases_raise_the_score():
+    predictor = SklearnPredictor(MODEL)
+    quiet = DengueRiskInput(26.0, 80.0, 150.0, 500.0, 3, 0.0, 0.0, temperatura_media_lag1=27.0)
+    outbreak = DengueRiskInput(26.0, 80.0, 150.0, 500.0, 3, 3000.0, 900.0, temperatura_media_lag1=27.0,
+                               incidencia_lag2=400.0, incidencia_vizinhos_lag1=600.0)
+    assert predictor.predict(outbreak).probability > predictor.predict(quiet).probability
 
 
 @pytest.mark.parametrize("classes", [[0, 1], [1, 0]])
@@ -46,10 +58,6 @@ def test_saved_threshold_controls_risk_including_boundary(monkeypatch, classes):
     assert predictor.predict_batch([]) == []
 
 
-def test_actual_artifact_prediction_matches_saved_threshold():
-    predictor = SklearnPredictor("models/modelo_baseline_risco_dengue.pkl")
+def test_optional_inputs_default_to_missing():
     data = DengueRiskInput(25, 70, 100, 100, 1, 10, 5)
-    result = predictor.predict(data)
-    assert predictor._threshold == 0.55
-    expected = RiskLevel.HIGH if result.probability >= 0.55 else RiskLevel.LOW
-    assert result.risk_level == expected
+    assert math.isnan(data.incidencia_vizinhos_lag1)
