@@ -44,3 +44,18 @@ Testar isolamento das defasagens por município, lacunas entre meses, agregaçã
 - Incidência observada, incidência de referência e probabilidade de risco alto têm rótulos distintos.
 - A aplicação informa dados insuficientes sem fabricar entradas ou resultados.
 - As alterações existentes no notebook e arquivos não relacionados são preservadas.
+
+## Implementação
+
+O desenho foi implementado com estes ajustes:
+
+- **Polígonos em vez de pontos.** O mapa usa a malha municipal do IBGE (`data/geo/sc_municipios.geojson`, origem em `data/geo/fonte.json`) num coroplético Plotly, mais legível para leigos. Os centroides são calculados da própria malha.
+- **Página própria.** O mapa é uma página do painel (`app/app_pages/mapa.py`). Clicar num município abre o resumo dele, com atalhos para a página do município e para o simulador.
+- **Modelo.** O mapa usa o modelo final (`models/modelo_risco_dengue.pkl`), que, além das entradas da calculadora, considera:
+  - a incidência de 2, 3 e 12 meses antes;
+  - os municípios vizinhos e o estado;
+  - o clima defasado.
+
+  As previsões do histórico e dos cenários são pré-calculadas na geração da base do painel.
+- **Cenário futuro de 3 meses.** Os atributos de casos ficam fixos no último mês observado, o clima é o típico do mês e a incidência de 12 meses antes é a observada. Com casos fixos, meses distantes perdem sentido, por isso o horizonte é de 3 meses. A interface marca o cenário como simulação.
+- **Tabela e simulador.** O resumo do mapa abre o simulador pelo município e mês. O simulador parte do perfil típico do município (`data/app/perfil_tipico.parquet`).

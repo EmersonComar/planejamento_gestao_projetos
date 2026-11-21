@@ -1,11 +1,31 @@
 # app/
 
-Código-fonte principal da aplicação web (Streamlit).
+Painel web em Streamlit voltado ao público leigo. Entrada: `app/main.py` (local e no Streamlit Community Cloud).
 
-O painel informa o último mês disponível na base e que sua atualização é manual.
-A célula de exportação de `notebooks/notebook_eda_dengue.ipynb` grava o CSV e
-`data/processed/base_analitica_sc.metadata.json`, com a data de geração em UTC
-e a identificação SHA-256 do CSV. Disponibilize os dois arquivos juntos ao
-atualizar a aplicação. O painel exibe o horário de Brasília somente quando
-os metadados correspondem ao CSV; caso contrário, mostra “Não registrada”.
-A data de geração não representa a data de atualização das fontes externas.
+## Estrutura
+
+- `main.py`: configuração da página e navegação (`st.navigation`, menu no topo). Só a página aberta é executada.
+- `app_pages/`: uma página por arquivo.
+  - `inicio.py`: situação atual do estado, mapa do último mês, municípios com mais casos e prevenção.
+  - `mapa.py`: mapa coroplético por mês (risco previsto, casos por 100 mil ou número de casos), cenário dos próximos meses e resumo do município clicado.
+  - `municipio.py`: histórico, comparação com o estado, sazonalidade e clima de um município (`?municipio=Nome`).
+  - `fatores.py`: explicações sobre época do ano, clima, tendência, regiões e o que o modelo considera.
+  - `simulador.py`: simulador "e se?". O modo simples parte dos valores típicos do município; o avançado permite editar as 20 informações do modelo.
+  - `sobre.py`: fontes, definição de caso provável, conferência com a DIVE/SC, desempenho do modelo e limitações.
+- `ui/`: código compartilhado.
+  - `data.py`: acesso aos dados com cache;
+  - `charts.py`: figuras Plotly em pt-BR;
+  - `components.py`: componentes reutilizados entre páginas;
+  - `fmt.py`: formatação e vocabulário para leigos;
+  - `nav.py`: atalhos entre páginas.
+
+## Dados
+
+O painel não lê o CSV da base nem recalcula indicadores: consulta, via DuckDB em memória, os arquivos
+pré-calculados em `data/app/` (gerados por `scripts/build_data.py`). O modelo
+(`models/modelo_risco_dengue.pkl`) só é executado no simulador. "Casos" são **casos prováveis**
+(confirmados, suspeitos e inconclusivos) e a incidência é a do mês. Ver `docs/base-do-app.md` e
+`docs/modelo-e-validacao.md`.
+
+A atualização é manual: novos meses aparecem depois de rodar os scripts de `scripts/` e publicar os
+arquivos gerados. A página "Sobre os dados" mostra o período coberto e a data de geração.
