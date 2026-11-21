@@ -16,7 +16,7 @@ O artigo **reproduz** números; não os calcula por conta própria.
 | Desempenho do modelo | [`models/metricas_modelo.json`](../models/metricas_modelo.json) e [`notebook_modelo_baseline.ipynb`](../notebooks/notebook_modelo_baseline.ipynb), seções 4 e 5 |
 | Definições e métodos | [`docs/modelo-e-validacao.md`](modelo-e-validacao.md) |
 
-Cite o painel (<https://dengue-sc-mvp.streamlit.app/>) como produto e o repositório
+Cite o painel (<https://dengue-sc.streamlit.app/>) como produto e o repositório
 (<https://github.com/EmersonComar/planejamento_gestao_projetos>) como material de reprodução.
 Quando houver uma versão pública do artigo, registre o link em `app/ui/links.py` (`ARTICLE_URL`)
 e na tabela "Como navegar este projeto" do README.

@@ -10,7 +10,7 @@ O projeto tem quatro componentes, cada um para um público. Todos partem deste r
 
 | Componente | Para que serve | Para quem | Onde |
 |---|---|---|---|
-| **Painel** | Mostrar a situação da dengue e o risco por município, em linguagem simples | Cidadãos, gestores municipais, imprensa | [dengue-sc-mvp.streamlit.app](https://dengue-sc-mvp.streamlit.app/) |
+| **Painel** | Mostrar a situação da dengue e o risco por município, em linguagem simples | Cidadãos, gestores municipais, imprensa | [dengue-sc.streamlit.app](https://dengue-sc.streamlit.app/) |
 | **Artigo** | Registrar a pesquisa: problema, métodos, resultados e limitações | Banca, professores, comunidade científica | Em elaboração ([roteiro](docs/roteiro-artigo.md)) |
 | **Notebooks** | Mostrar e reproduzir a análise, das fontes ao modelo | Avaliadores técnicos e quem quer refazer os resultados | [Dados e análise exploratória](notebooks/notebook_eda_dengue.ipynb) e [modelagem](notebooks/notebook_modelo_baseline.ipynb) |
 | **Repositório** | Guardar código, dados, modelo, testes e documentação; publica o painel | Desenvolvedores e mantenedores | Este README, [`docs/`](docs/README.md) e as pastas abaixo |
@@ -23,7 +23,7 @@ Fontes públicas ─► Notebook de dados ─► base analítica ─► Notebook
 ```
 
 **Por onde começar**
-- **Quer saber como está a dengue na sua cidade?** Abra o [painel](https://dengue-sc-mvp.streamlit.app/). A página "Sobre os dados" explica as fontes e os limites.
+- **Quer saber como está a dengue na sua cidade?** Abra o [painel](https://dengue-sc.streamlit.app/). A página "Sobre os dados" explica as fontes e os limites.
 - **Está avaliando a pesquisa?** Leia as [entregas por sprint](#entregas-por-sprint) e os dois notebooks, que trazem cada etapa com gráficos e conclusões. Os métodos estão resumidos em [`docs/modelo-e-validacao.md`](docs/modelo-e-validacao.md).
 - **Vai manter ou atualizar o projeto?** Siga [Executar a Aplicação](#executar-a-aplicação) e [Atualizar Dados e Modelo](#atualizar-dados-e-modelo), e a arquitetura em [`docs/base-do-app.md`](docs/base-do-app.md).
 
@@ -68,7 +68,7 @@ Os números têm uma única origem: totais de casos vêm da base analítica e m�
 
 ### Publicação no Streamlit Community Cloud
 
-- **Aplicação publicada:** [MVP Dengue SC](https://dengue-sc-mvp.streamlit.app/).
+- **Aplicação publicada:** [MVP Dengue SC](https://dengue-sc.streamlit.app/).
 
 A aplicação é publicada a partir deste repositório, branch `main`, com entrada em `app/main.py`. Em **Advanced settings**, selecione **Python 3.13**. As dependências de execução estão em [`app/requirements.txt`](app/requirements.txt), com `scikit-learn==1.6.1` fixado para carregar o modelo, e o tema em [`.streamlit/config.toml`](.streamlit/config.toml).
 
