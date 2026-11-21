@@ -1,299 +1,228 @@
-import os
+import math
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
 
 import pandas as pd
 import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-from app.main import build_simulator_coverage, build_simulator_url, evaluate_risk_for_row, row_to_input
-from src.application.use_cases.dashboard_analytics import DashboardAnalyticsUseCase
-from src.infrastructure.data.csv_repository import CsvDataRepository
+from app.ui import fmt
+from src.application.use_cases.predict_risk import PredictRiskUseCase
+from src.domain.validation import MODEL_FIELDS, build_risk_input
+from src.infrastructure.data.duckdb_repository import AppDataUnavailableError, DuckDbAnalyticsRepository
+from src.infrastructure.ml.predictor import SklearnPredictor
+
+ROOT = Path(__file__).resolve().parents[1]
+ENTRYPOINT = str(ROOT / "app" / "main.py")
+PAGES = ["app_pages/inicio.py", "app_pages/mapa.py", "app_pages/municipio.py",
+         "app_pages/fatores.py", "app_pages/simulador.py", "app_pages/sobre.py"]
 
 
-def test_app_loads_and_predicts(dashboard_data):
-    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "main.py")
-    at = AppTest.from_file(script_path, default_timeout=20).run()
+@pytest.fixture(autouse=True)
+def clear_streamlit_caches():
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    yield
+    st.cache_data.clear()
+    st.cache_resource.clear()
 
+
+@pytest.fixture(scope="module")
+def repo():
+    return DuckDbAnalyticsRepository(ROOT)
+
+
+@pytest.fixture(scope="module")
+def use_case():
+    return PredictRiskUseCase(SklearnPredictor(str(ROOT / "models" / "modelo_risco_dengue.pkl")))
+
+
+def open_app(page: str | None = None) -> AppTest:
+    at = AppTest.from_file(ENTRYPOINT, default_timeout=60).run()
+    if page:
+        at.switch_page(page).run()
+    return at
+
+
+def metric(at: AppTest, label: str) -> str:
+    return next(m.value for m in at.metric if m.label == label)
+
+
+@pytest.mark.parametrize("page", PAGES)
+def test_every_page_renders_without_errors(page):
+    at = open_app(page)
     assert not at.exception
-    assert at.title[0].value == "Sistema de Classificacao de Risco de Dengue"
-    assert next(m.value for m in at.metric if m.label == "Base gerada em") == "Não registrada"
-    assert next(m.value for m in at.metric if m.label == "Último mês disponível na base") == "04/2025"
-    assert next(m.value for m in at.metric if m.label == "Atualização dos dados") == "Manual"
+    assert at.title
 
-    at.number_input[0].set_value(30.0)
 
-    at.button[0].click().run()
+def test_home_metrics_follow_selected_period(repo):
+    at = open_app()
+    state = repo.state_monthly()
+    assert metric(at, "Casos no período") == fmt.num(state.tail(12)["casos"].sum())
 
+    at.segmented_control(key="inicio_atalho").set_value("Toda a série").run()
     assert not at.exception
-    assert len(at.subheader) > 0
-    assert at.subheader[0].value == "Resultado da Analise"
+    assert metric(at, "Casos no período") == fmt.num(state["casos"].sum())
+    top = repo.ranking(limit=10_000)
+    assert metric(at, "Municípios em nível epidêmico") == fmt.num((top["meses_incidencia_alta"] > 0).sum())
 
-
-def test_build_simulator_url_and_risk_metrics():
-    row = {
-        "temperatura_media": 25.0,
-        "umidade_media": 70.0,
-        "precipitacao_total": 100.0,
-        "densidade_demografica": 100.0,
-        "mes": 1,
-        "casos_lag1": 10.0,
-        "incidencia_lag1": 5.0,
-    }
-
-    url = build_simulator_url(row)
-
-    assert "temperatura_media=25.0" in url
-    assert "mes=1" in url
-    assert "simulador" in url.lower()
-
-    risk_value, probability = evaluate_risk_for_row(row)
-
-    assert risk_value in {"Baixo", "Alto"}
-    assert 0.0 <= probability <= 1.0
-
-
-@pytest.mark.skipif(
-    not Path("data/processed/base_analitica_sc.csv").exists(),
-    reason="Base real não disponível localmente; consistência também coberta por dados controlados.",
-)
-def test_simulator_consistency_with_real_rows_from_dataset():
-    df = pd.read_csv("data/processed/base_analitica_sc.csv", parse_dates=["ano_mes"])
-    df = DashboardAnalyticsUseCase.prepare_temporal_features(df)
-    df = df.dropna(subset=[
-        "temperatura_media",
-        "umidade_media",
-        "precipitacao_total",
-        "densidade_demografica",
-        "mes",
-        "casos_lag1",
-        "incidencia_lag1",
-    ])
-
-    sample = df.sample(n=10, random_state=42, replace=False)
-
-    for _, row in sample.iterrows():
-        row_dict = {
-            "temperatura_media": row["temperatura_media"],
-            "umidade_media": row["umidade_media"],
-            "precipitacao_total": row["precipitacao_total"],
-            "densidade_demografica": row["densidade_demografica"],
-            "mes": row["mes"],
-            "casos_lag1": row["casos_lag1"],
-            "incidencia_lag1": row["incidencia_lag1"],
-        }
-
-        risk_value, probability = evaluate_risk_for_row(row_dict)
-        url = build_simulator_url(row_dict)
-        parsed = parse_qs(urlsplit(url).query)
-
-        assert float(parsed["temperatura_media"][0]) == float(row_dict["temperatura_media"])
-        assert int(parsed["mes"][0]) == int(row_dict["mes"])
-        assert risk_value in {"Baixo", "Alto"}
-        assert 0.0 <= probability <= 1.0
-
-
-def test_table_and_simulator_roundtrip_preserves_all_inputs_and_prediction(analytical_data):
-    frame = DashboardAnalyticsUseCase.prepare_temporal_features(analytical_data)
-    for _, row in frame.loc[frame["mes"] == 2].iterrows():
-        values = {key: value[0] for key, value in parse_qs(urlsplit(build_simulator_url(row)).query).items()}
-        assert row_to_input(values) == row_to_input(row)
-        simulator_risk, simulator_probability = evaluate_risk_for_row(values)
-        table_risk, table_probability = evaluate_risk_for_row(row)
-        assert simulator_risk == table_risk
-        assert simulator_probability == pytest.approx(table_probability)
-
-
-def test_dashboard_population_and_detail_table(dashboard_data, monkeypatch):
-    original_expander = st.expander
-
-    def expanded_details(label, **kwargs):
-        if label == "Detalhamento dos fatores por período":
-            kwargs["expanded"] = True
-        return original_expander(label, **kwargs)
-
-    monkeypatch.setattr(st, "expander", expanded_details)
-    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20).run()
+    at.segmented_control(key="inicio_atalho").set_value("Personalizado").run()
+    start, end = pd.Timestamp("2024-01-01"), pd.Timestamp("2024-06-01")
+    at.select_slider(key="inicio_intervalo").set_value((start, end)).run()
     assert not at.exception
-    assert next(metric.value for metric in at.metric if metric.label == "Populacao") == "3.004"
-    table = at.dataframe[0].value
-    assert len(table) == len(dashboard_data)
-    assert (table["Risco"] == "Dados insuficientes").sum() == 4
-    assert table["Simulador"].notna().all()
-    for _, row in table.loc[table["Risco"] != "Dados insuficientes"].iterrows():
-        inputs = {key: value[0] for key, value in parse_qs(urlsplit(row["Simulador"]).query).items()}
-        risk, probability = evaluate_risk_for_row(inputs)
-        assert row["Risco"] == risk
-        assert row["Probabilidade de risco alto"] == f"{probability:.2%}"
+    window = state.loc[state["ano_mes"].between(start, end)]
+    assert metric(at, "Casos no período") == fmt.num(window["casos"].sum())
+    peak = window.loc[window["casos"].idxmax(), "ano_mes"]
+    assert metric(at, "Mês com mais casos") == fmt.month_year(peak, short=True)
 
-    at.selectbox[1].set_value("Município A").run()
+
+def test_map_scenario_is_labeled_as_simulation(repo):
+    at = open_app("app_pages/mapa.py")
+    at.segmented_control(key="mapa_visao").set_value("Próximos meses").run()
     assert not at.exception
-    assert next(metric.value for metric in at.metric if metric.label == "Populacao") == "1.002"
-    assert set(at.dataframe[0].value["Município"]) == {"Município A"}
+    assert any("simulação" in warning.value for warning in at.warning)
+    first = repo.scenario_periods()[0]
+    expected = (repo.map_snapshot(first)["risco"] == "Alto").sum()
+    assert metric(at, "Municípios com risco alto previsto") == fmt.num(expected)
 
 
-def test_simulator_remains_available_without_csv(monkeypatch):
-    def missing_csv(self):
-        raise FileNotFoundError("base ausente")
-
-    monkeypatch.setattr(CsvDataRepository, "load", missing_csv)
-    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20).run()
+def test_map_history_and_selection(repo):
+    at = open_app("app_pages/mapa.py")
+    period = pd.Timestamp("2024-03-01")
+    at.select_slider(key="mapa_mes").set_value(period).run()
+    snapshot = repo.map_snapshot(period)
+    assert metric(at, "Municípios em nível epidêmico") == fmt.num(snapshot["incidencia_alta_observada"].sum())
+    code = int(snapshot.loc[snapshot["nome_municipio"] == "Blumenau", "codigo_ibge"].iat[0])
+    at.selectbox(key="mapa_busca_None").set_value(code).run()
     assert not at.exception
-    assert "Base analítica não encontrada" in at.warning[0].value
-    at.button[0].click().run()
+    assert "Blumenau" in [md.value.strip("# ") for md in at.markdown]
+
+
+def test_municipality_page(repo):
+    at = open_app("app_pages/municipio.py")
+    assert at.button(key="sugestao_Joinville")
+    at.selectbox(key="municipio").set_value("Joinville").run()
     assert not at.exception
-    assert at.success or at.error
+    monthly = repo.monthly(codigo_ibge=4209102)
+    assert metric(at, "Casos nos últimos 12 meses") == fmt.num(monthly.tail(12)["casos"].sum())
+    assert metric(at, "Meses em nível epidêmico") == fmt.num(monthly["incidencia_alta_observada"].sum())
 
 
-@pytest.mark.parametrize("value", [float("nan"), float("inf")])
-def test_incomplete_inputs_produce_links_with_blank_fields(analytical_data, value):
-    frame = DashboardAnalyticsUseCase.prepare_temporal_features(analytical_data)
-    row = frame.loc[frame["mes"] == 2].iloc[0].copy()
-    row["casos_lag1"] = value
-    params = parse_qs(urlsplit(build_simulator_url(row)).query, keep_blank_values=True)
-    assert params["casos_lag1"] == [""]
-    assert float(params["temperatura_media"][0]) == row["temperatura_media"]
-
-
-def test_incomplete_row_can_be_completed_in_simulator(dashboard_data):
-    frame = DashboardAnalyticsUseCase.prepare_temporal_features(dashboard_data)
-    row = frame.loc[frame["mes"] == 2].iloc[0].copy()
-    row["precipitacao_total"] = float("nan")
-    params = {key: value[0] for key, value in parse_qs(
-        urlsplit(build_simulator_url(row)).query, keep_blank_values=True
-    ).items()}
-    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20)
-    at.query_params.update(params)
-    at.run()
-    assert not at.exception
-    assert at.number_input[2].value is None
-    assert at.number_input[0].value == row["temperatura_media"]
-    assert at.selectbox[0].value == 2
-    assert "Chuva acumulada no mês (mm)" in at.warning[0].value
-    at.button[0].click().run()
-    assert not at.exception
-    assert not at.success and not at.error
-    assert any("Ainda faltam dados" in warning.value for warning in at.warning)
-    at.number_input[2].set_value(150.0)
-    at.number_input[0].set_value(30.0)
-    at.button[0].click().run()
-    assert not at.exception
-    assert at.number_input[2].value == 150.0
-    assert at.number_input[0].value == 30.0
-    assert not at.warning
-    assert at.success or at.error
-
-
-def test_first_month_missing_lags_remain_blank_in_simulator(dashboard_data):
-    row = DashboardAnalyticsUseCase.prepare_temporal_features(dashboard_data).iloc[0]
-    params = {key: value[0] for key, value in parse_qs(
-        urlsplit(build_simulator_url(row)).query, keep_blank_values=True
-    ).items()}
-    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20)
-    at.query_params.update(params)
-    at.run()
-    assert not at.exception
-    assert at.number_input[4].value is None
-    assert at.number_input[5].value is None
-    assert "Casos de dengue no mês anterior" in at.warning[0].value
-
-
-@pytest.mark.parametrize("field,value", [
-    ("umidade_media", -1),
-    ("umidade_media", 101),
-    ("precipitacao_total", -1),
-    ("densidade_demografica", -1),
-    ("casos_lag1", -1),
-    ("incidencia_lag1", -1),
-    ("mes", 0),
-    ("mes", 13),
-    ("mes", 1.5),
-    ("temperatura_media", float("inf")),
-    ("temperatura_media", float("nan")),
-    ("temperatura_media", "abc"),
-])
-def test_invalid_values_cannot_reach_prediction(analytical_data, field, value):
-    row = DashboardAnalyticsUseCase.prepare_temporal_features(analytical_data).loc[lambda frame: frame["mes"] == 2].iloc[0].copy()
-    row[field] = value
-    with pytest.raises(ValueError):
-        row_to_input(row)
-    params = parse_qs(urlsplit(build_simulator_url(row)).query, keep_blank_values=True)
-    assert params[field] == [""]
-
-
-def test_invalid_link_values_are_blank_and_can_be_corrected(dashboard_data):
-    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20)
-    at.query_params.update({
-        "simulador": "1", "temperatura_media": "-5", "umidade_media": "101",
-        "precipitacao_total": "-10", "densidade_demografica": "abc",
-        "mes": "13", "casos_lag1": "-2", "incidencia_lag1": "inf",
+def _typical_inputs(repo, name: str, month: int) -> dict:
+    """Reproduz, de forma independente, os valores iniciais do simulador simples."""
+    info = repo.municipalities().set_index("nome_municipio").loc[name]
+    row = repo.query("SELECT * FROM perfil_tipico WHERE codigo_ibge = ? AND mes = ?",
+                     [int(info["codigo_ibge"]), month]).iloc[0]
+    values = {field: row[field] for field in row.index if field in MODEL_FIELDS}
+    values["mes"] = month
+    population = float(info["populacao"])
+    cases = float(round(row["casos_lag1"]))
+    incidence = cases * 1e5 / population
+    values.update({
+        "casos_lag1": cases, "incidencia_lag1": incidence,
+        "crescimento": math.log1p(incidence) - math.log1p(row["incidencia_lag2"]),
+        "incidencia_media3": (incidence + row["incidencia_lag2"] + row["incidencia_lag3"]) / 3,
+        "temperatura_media": round(row["temperatura_media"] * 2) / 2,
+        "temperatura_media_lag1": round(row["temperatura_media_lag1"] * 2) / 2,
+        "precipitacao_total": float(round(row["precipitacao_total"] / 5) * 5),
+        "umidade_media": float(round(row["umidade_media"])),
     })
-    at.run()
+    return values
+
+
+def _risk_message(at) -> str:
+    return next(m.value for m in [*at.error, *at.success] if m.value.startswith("**Risco"))
+
+
+def test_simple_simulator_matches_model_with_typical_values(repo, use_case):
+    at = open_app("app_pages/simulador.py")
+    assert at.selectbox(key="sim_municipio").value == "Florianópolis"
+    at.selectbox(key="sim_mes").set_value(4).run()
     assert not at.exception
-    assert at.number_input[0].value == -5
-    assert all(widget.value is None for widget in at.number_input[1:])
-    assert at.selectbox[0].value is None
-    assert any("Valores inválidos" in caption.value for caption in at.caption)
-    at.button[0].click().run()
-    assert not at.exception and not at.success and not at.error
-    for widget in at.number_input[1:]:
-        widget.set_value(0.0)
-    at.selectbox[0].set_value(1)
+
+    inputs = _typical_inputs(repo, "Florianópolis", 4)
+    expected = use_case.execute(build_risk_input(inputs))
+    label = "Risco alto." if expected.risk_level.value == "Alto" else "Risco baixo."
+    assert _risk_message(at).startswith(f"**{label}**")
+    assert metric(at, "Com os valores típicos, a pontuação seria") == fmt.pct(expected.probability)
+
+    temperature_key = next(s.key for s in at.slider if s.key.startswith("sim_temperatura_media_lag1_"))
+    at.slider(key=temperature_key).set_value(15.0).run()
+    assert not at.exception
+    changed = use_case.execute(build_risk_input({**inputs, "temperatura_media_lag1": 15.0}))
+    label = "Risco alto." if changed.risk_level.value == "Alto" else "Risco baixo."
+    assert _risk_message(at).startswith(f"**{label}**")
+
+
+def test_advanced_simulator_predicts_like_model(use_case):
+    at = open_app("app_pages/simulador.py")
+    at.segmented_control(key="sim_modo").set_value("Avançado").run()
+    # Limites (ex.: chuva >= 0) são aplicados pelo próprio campo; a validação do domínio é testada à parte.
+    at.number_input(key="adv_precipitacao_total_").set_value(250.0)
+    at.number_input(key="adv_casos_lag1_").set_value(500.0)
+    at.number_input(key="adv_incidencia_lag1_").set_value(400.0)
+    at.number_input(key="adv_incidencia_vizinhos_lag1_").set_value(350.0)
+    at.selectbox(key="adv_mes_").set_value(3)
     at.button[0].click().run()
     assert not at.exception and not at.warning
+    expected = use_case.execute(build_risk_input({
+        "temperatura_media": 25.0, "umidade_media": 70.0, "precipitacao_total": 250.0,
+        "densidade_demografica": 100.0, "mes": 3, "casos_lag1": 500.0, "incidencia_lag1": 400.0,
+        "incidencia_vizinhos_lag1": 350.0,
+    }))
+    label = "Risco alto." if expected.risk_level.value == "Alto" else "Risco baixo."
+    assert _risk_message(at).startswith(f"**{label}**")
+
+
+def test_advanced_simulator_can_start_from_municipality(repo):
+    at = open_app("app_pages/simulador.py")
+    at.segmented_control(key="sim_modo").set_value("Avançado").run()
+    at.selectbox(key="adv_municipio").set_value("Blumenau").run()
+    code = int(repo.municipalities().set_index("nome_municipio").loc["Blumenau", "codigo_ibge"])
+    assert at.number_input(key=f"adv_temperatura_media_{code}_1").value is not None
+    at.button[0].click().run()
+    assert not at.exception
+    assert _risk_message(at)
+
+
+def test_navigation_shortcut_opens_simulator_for_municipality():
+    at = open_app("app_pages/municipio.py")
+    at.selectbox(key="municipio").set_value("Blumenau").run()
+    at.button(key="municipio_simular").click().run()
+    assert not at.exception
+    assert at.selectbox(key="sim_municipio").value == "Blumenau"
+
+
+def test_missing_app_data_shows_message_and_keeps_advanced_simulator(monkeypatch):
+    def unavailable(self, root, **kwargs):
+        raise AppDataUnavailableError("Base do app não encontrada")
+
+    monkeypatch.setattr(DuckDbAnalyticsRepository, "__init__", unavailable)
+    at = open_app()
+    assert not at.exception
+    assert "não estão disponíveis" in at.error[0].value
+    at.switch_page("app_pages/simulador.py").run()
+    at.segmented_control(key="sim_modo").set_value("Avançado").run()
+    at.button[0].click().run()
+    assert not at.exception
     assert at.success or at.error
 
 
-@pytest.mark.parametrize("humidity", [0.0, 100.0])
-def test_valid_boundary_values_and_negative_temperature(analytical_data, humidity):
-    row = DashboardAnalyticsUseCase.prepare_temporal_features(analytical_data).iloc[0].copy()
-    row["temperatura_media"] = -5.0
-    row["umidade_media"] = humidity
-    for field in ("precipitacao_total", "densidade_demografica", "casos_lag1", "incidencia_lag1"):
-        row[field] = 0.0
-    inputs = row_to_input(row)
-    assert inputs.temperatura_media == -5.0
-    assert inputs.umidade_media == humidity
-    assert inputs.casos_lag1 == 0.0
+def test_about_page_points_to_project_materials():
+    from app.ui import links
 
-
-def test_coverage_identifies_missing_invalid_and_real_zero(analytical_data):
-    frame = DashboardAnalyticsUseCase.prepare_temporal_features(analytical_data)
-    feb_index = frame.loc[(frame.codigo_ibge == 1) & (frame.mes == 2)].index[0]
-    frame.loc[feb_index, "precipitacao_total"] = float("nan")
-    frame.loc[feb_index, "umidade_media"] = 101.0
-    frame.loc[frame.mes == 1, "precipitacao_total"] = 0.0
-    valid, summary, pending = build_simulator_coverage(frame)
-    assert valid.sum() == 1
-    summary = summary.set_index("Campo")
-    assert summary.loc["Chuva acumulada no mês (mm)", "Dados ausentes"] == 1
-    assert summary.loc["Chuva acumulada no mês (mm)", "Registros válidos"] == 5
-    assert summary.loc["Umidade média do ar (%)", "Valores inválidos"] == 1
-    assert "Chuva acumulada no mês (mm) (ausente)" in pending.loc[feb_index]
-    assert "Umidade média do ar (%) (inválido)" in pending.loc[feb_index]
-    assert pending.loc[valid].eq("Nenhum").all()
-
-
-def test_dashboard_coverage_and_pending_fields_follow_municipality(dashboard_data, monkeypatch):
-    original_expander = st.expander
-    def opened_details(label, **kwargs):
-        if label == "Detalhamento dos fatores por período":
-            kwargs["expanded"] = True
-        return original_expander(label, **kwargs)
-    monkeypatch.setattr(st, "expander", opened_details)
-    at = AppTest.from_file(Path(__file__).resolve().parents[1] / "app/main.py", default_timeout=20).run()
+    at = open_app("app_pages/sobre.py")
     assert not at.exception
-    assert next(m.value for m in at.metric if m.label == "Registros completos para o simulador") == "2 de 6"
-    assert next(m.value for m in at.metric if m.label == "Registros para preencher ou corrigir") == "4"
-    coverage = at.table[0].value.set_index("Campo")
-    assert coverage.loc["Casos de dengue no mês anterior", "Dados ausentes"] == 4
-    table = at.dataframe[0].value
-    assert table.loc[table.Risco == "Dados insuficientes", "Dados para preencher ou corrigir"].str.contains("Casos de dengue no mês anterior").all()
-    assert table.loc[table.Risco != "Dados insuficientes", "Dados para preencher ou corrigir"].eq("Nenhum").all()
-    assert table.Simulador.notna().all()
-    at.selectbox[1].set_value("Município A").run()
+    urls = {button.proto.url for button in at.get("link_button")}
+    assert {links.REPO_URL, links.NOTEBOOK_DATA_URL, links.NOTEBOOK_MODEL_URL} <= urls
+    assert any(links.REPO_URL in caption.value for caption in at.caption)  # rodapé
+
+
+def test_simulator_without_trained_model_shows_message(monkeypatch):
+    from app.ui import data
+
+    monkeypatch.setattr(data, "model_available", lambda: False)
+    at = open_app("app_pages/simulador.py")
     assert not at.exception
-    assert next(m.value for m in at.metric if m.label == "Meses completos para o simulador") == "1 de 3"
-    assert next(m.value for m in at.metric if m.label == "Meses para preencher ou corrigir") == "2"
-    assert at.table[0].value.set_index("Campo").loc["Casos de dengue no mês anterior", "Dados ausentes"] == 2
+    assert "ainda não foi treinado" in at.error[0].value
+    assert not at.slider and not at.button
