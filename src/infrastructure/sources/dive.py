@@ -1,8 +1,9 @@
-"""DIVE/SC — informes epidemiológicos de dengue: casos prováveis por mês de início dos sintomas.
+"""DIVE/SC — fonte oficial dos totais estaduais mensais de dengue, mantidos como referência.
 
-Usados para conferir os totais da base. A tabela "Casos notificados de dengue, segundo
-classificação final" traz, por mês, as colunas Dengue, Dengue com sinais de alarme, Dengue grave,
-Descartado, Inconclusivo e Suspeito. Casos prováveis = todas menos Descartado.
+A tabela "Casos notificados de dengue, segundo classificação final" traz, por mês de início dos
+sintomas, as colunas Dengue, Dengue com sinais de alarme, Dengue grave, Descartado, Inconclusivo e
+Suspeito. Casos prováveis = todas menos Descartado. Essa série estadual é comparada, mas não
+substitui nem alimenta a série municipal do InfoDengue usada no modelo.
 """
 from __future__ import annotations
 

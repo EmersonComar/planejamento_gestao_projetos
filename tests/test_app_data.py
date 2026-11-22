@@ -9,6 +9,7 @@ from src.domain.validation import build_risk_input
 from src.infrastructure.data.app_data_builder import AppDataPaths
 from src.infrastructure.data.duckdb_repository import AppDataUnavailableError, DuckDbAnalyticsRepository
 from src.infrastructure.ml.predictor import SklearnPredictor
+from app.ui import data as app_data
 
 ROOT = Path(__file__).resolve().parents[1]
 REAL_PATHS = AppDataPaths(ROOT)
@@ -94,3 +95,38 @@ def test_repository_detects_stale_sources(app_data_root):
 def test_missing_app_data_raises_clear_error(tmp_path):
     with pytest.raises(AppDataUnavailableError, match="Base do app não encontrada"):
         DuckDbAnalyticsRepository(tmp_path)
+
+
+def test_official_comparison_keeps_last_panel_month_before_latest_bulletin_month(tmp_path, monkeypatch):
+    reference_dir = tmp_path / "data" / "referencia"
+    reference_dir.mkdir(parents=True)
+    reference = pd.DataFrame({
+        "ano": [2026, 2026, 2026],
+        "mes": [1, 2, 3],
+        "casos_provaveis": [10, 20, 30],
+        "notificacoes": [100, 200, 300],
+        "documento": ["Informe nº 11/2026"] * 3,
+        "dados_ate": ["2026-11-03"] * 3,
+    })
+    reference.to_csv(reference_dir / "dive_sc_dengue_mensal.csv", index=False)
+
+    class Repository:
+        def query(self, _query):
+            return pd.DataFrame({
+                "ano": [2026, 2026],
+                "mes": [1, 2],
+                "casos_painel": [12, 24],
+                "notificacoes_painel": [110, 220],
+            })
+
+    monkeypatch.setattr(app_data, "ROOT", tmp_path)
+    monkeypatch.setattr(app_data, "require_repository", Repository)
+    app_data.official_comparison.clear()
+    try:
+        comparison = app_data.official_comparison()
+    finally:
+        app_data.official_comparison.clear()
+
+    assert comparison.loc[0, "meses"] == 2
+    assert comparison.loc[0, "casos_dive"] == 30
+    assert comparison.loc[0, "casos_painel"] == 36

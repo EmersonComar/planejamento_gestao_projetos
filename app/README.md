@@ -11,7 +11,7 @@ Painel web em Streamlit voltado ao público leigo. Entrada: `app/main.py` (local
   - `municipio.py`: histórico, comparação com o estado, sazonalidade e clima de um município (`?municipio=Nome`).
   - `fatores.py`: explicações sobre época do ano, clima, tendência, regiões e o que o modelo considera.
   - `simulador.py`: simulador "e se?". O modo simples parte dos valores típicos do município; o avançado permite editar as 20 informações do modelo.
-  - `sobre.py`: fontes, definição de caso provável, conferência com a DIVE/SC, desempenho do modelo e limitações.
+  - `sobre.py`: papéis das fontes, definição de caso provável, comparação do InfoDengue com os totais estaduais oficiais da DIVE/SC, desempenho do modelo e limitações.
 - `ui/`: código compartilhado.
   - `data.py`: acesso aos dados com cache;
   - `charts.py`: figuras Plotly em pt-BR;

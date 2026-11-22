@@ -9,7 +9,7 @@ Dados extraídos de fontes públicas e arquivos derivados. Tudo é baixado e ger
 | `processed/` | `base_analitica_sc.csv` (município × mês) e seus metadados. Intermediários não versionados: população e área do IBGE, saneamento da ANA, precipitação mensal por estação e coordenadas das estações. | Só a base |
 | `app/` | Base pré-calculada do painel em Parquet (`mensal`, `cenarios`, `municipios`, `perfil_tipico`) e `metadados.json`, gerada pelo notebook de modelagem. | Sim |
 | `geo/` | Malha municipal de SC e regiões do IBGE (origem em `fonte.json`) e as estações do INMET a até 60 km de cada município, em ordem de distância (`estacoes_inmet_municipios.csv`). | Sim |
-| `referencia/` | Casos prováveis e notificações por mês extraídos dos informes epidemiológicos da DIVE/SC, com URL e data de corte de cada documento. | Sim |
+| `referencia/` | Totais estaduais oficiais de casos prováveis e notificações por mês, extraídos dos informes da DIVE/SC, com URL e data de corte. Mantidos separados da série municipal do InfoDengue para comparação; não alimentam o modelo. | Sim |
 
 ## Base analítica (`processed/base_analitica_sc.csv`)
 
@@ -17,7 +17,7 @@ Um registro por município e mês, de jan/2015 ao último mês completo.
 
 | Coluna | Origem | Descrição |
 |---|---|---|
-| `casos` | InfoDengue (`casprov`) | Casos prováveis de dengue: confirmados, suspeitos e inconclusivos. |
+| `casos` | InfoDengue (`casprov`) | Casos prováveis de dengue: confirmados, suspeitos e inconclusivos. Série usada nas análises municipais e no modelo; não é a série oficial estadual publicada pela DIVE/SC. |
 | `notificacoes` | InfoDengue (`casos`) | Todas as notificações, inclusive descartadas. |
 | `populacao` | IBGE | Estimativa do ano (tabela 6579); Censo em 2022; 2023 interpolado. |
 | `incidencia_100k` | — | Casos prováveis do mês ÷ população × 100 mil. |

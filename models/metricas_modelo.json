@@ -1,5 +1,5 @@
 {
-  "gerado_em": "2026-11-21T16:57:07+00:00",
+  "gerado_em": "2026-11-22T15:40:03+00:00",
   "configuracao": "rf+hgb_completo",
   "descricao": "Random Forest + Gradient Boosting, 20 informações",
   "alvo": "incidência mensal de casos prováveis >= 300 por 100 mil habitantes",

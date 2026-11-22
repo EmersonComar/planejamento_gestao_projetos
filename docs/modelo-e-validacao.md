@@ -2,9 +2,9 @@
 
 ## Definições
 
-- **Caso**: caso provável de dengue — confirmados, suspeitos e inconclusivos, sem os descartados
-  (`casprov` do InfoDengue). É o conceito usado pela DIVE/SC. O total de notificações, que inclui os
-  descartados, fica na coluna `notificacoes`.
+- **Caso no painel**: caso provável de dengue — confirmados, suspeitos e inconclusivos, sem os descartados
+  (`casprov` do InfoDengue). A DIVE/SC usa a mesma definição, mas publica uma série oficial estadual separada.
+  O total de notificações, que inclui os descartados, fica na coluna `notificacoes`.
 - **Incidência**: casos prováveis do mês ÷ população do município naquele ano (IBGE) × 100 mil.
 - **Mês epidêmico (alvo do modelo)**: incidência mensal de casos prováveis ≥ 300 por 100 mil.
 
@@ -17,23 +17,32 @@ Regras de montagem da base (`src/application/use_cases/base_analitica.py`):
   ao menos 70% das horas do mês, até 60 km. Somar horas sem medição como zero subestimaria a chuva.
 - **Lacunas:** ficam ausentes; nada é preenchido com zero.
 
-## Conferência com os informes da DIVE/SC
+## DIVE/SC como referência oficial estadual
+
+A DIVE/SC é a fonte de verdade para os totais estaduais divulgados em seus informes. A série do
+InfoDengue é mantida para análises por município e para o modelo, pois os informes usados aqui
+publicam totais estaduais mensais, não a série municipal necessária ao painel. Os valores do
+InfoDengue não são ajustados para coincidir com a DIVE.
 
 `data/referencia/dive_sc_dengue_mensal.csv` traz os casos prováveis e as notificações por mês de
 início dos sintomas, extraídos automaticamente dos Informes Epidemiológicos nº 34/2024, 17/2025 e
-11/2026 (`src/infrastructure/sources/dive.py`). Totais da base × DIVE, sem o último mês de cada
-informe, que ainda estava incompleto:
+11/2026 (`src/infrastructure/sources/dive.py`). Os valores da referência foram conferidos mês a
+mês com os três PDFs. A tabela abaixo compara a série municipal agregada do painel com os totais
+estaduais oficiais da DIVE; exclui o mês mais recente de cada informe por cautela, para evitar
+períodos possivelmente parciais:
 
-| Ano | Casos prováveis | Notificações |
-|---|---|---|
-| 2024 (jan–nov) | +8% | +4% |
-| 2025 (jan–nov) | +13% | +6% |
-| 2026 (jan–set) | +33% | +5% |
+| Ano/período | Casos prováveis do painel vs DIVE | Notificações do painel vs DIVE |
+|---|---:|---:|
+| 2024 (jan–nov) | +7,85% (+26.347) | +4,29% (+24.304) |
+| 2025 (jan–nov) | +12,60% (+3.228) | +6,00% (+8.019) |
+| 2026 (jan–out) | +18,26% (+637) | +5,44% (+2.069) |
 
-A base conta pela semana de notificação (InfoDengue). A DIVE conta pelo mês de início dos sintomas,
-e os casos suspeitos são reclassificados depois. Por isso as diferenças mensais são maiores que as
-anuais. Em 2026, ano de pouquíssimos casos, os casos ainda sem desfecho pesam mais. A página "Sobre
-os dados" do painel recalcula essa tabela a partir da base vigente.
+A base agrega semanas epidemiológicas do InfoDengue, cujos dados são revisados retrospectivamente.
+A DIVE publica dados do SINAN agrupados pelo mês de início dos sintomas, com data de corte própria;
+casos suspeitos também podem ser reclassificados. As diferenças mensais podem ser maiores que as
+anuais. Em 2026, o informe 11/2026 contém novembro, mas a base do painel termina em outubro; o
+período comparável é janeiro a outubro. A página "Sobre os dados" do painel recalcula essa tabela
+a partir da base vigente.
 
 ## Modelo
 

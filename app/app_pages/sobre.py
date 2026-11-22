@@ -31,14 +31,17 @@ with st.container(border=True):
 with st.container(border=True):
     st.subheader("De onde vêm os dados", icon=":material/database:")
     st.table(pd.DataFrame([
-        ("InfoDengue (Fiocruz)", "Casos prováveis e notificações de dengue, temperatura e umidade por município",
+        ("InfoDengue (Fiocruz)",
+         "Série municipal de casos e notificações, temperatura e umidade; usada nas análises municipais e no modelo",
          "https://info.dengue.mat.br/"),
         ("IBGE", "População de cada ano, área (Censo 2022), regiões e mapa dos municípios", "https://www.ibge.gov.br/"),
         ("INMET", "Chuva medida na estação meteorológica mais próxima de cada município",
          "https://portal.inmet.gov.br/dadoshistoricos"),
         ("ANA — Atlas Esgotos", "Tratamento de esgoto (usado só na análise exploratória)",
          "https://dadosabertos.ana.gov.br/"),
-        ("DIVE/SC", "Boletins oficiais usados para conferir os números", "https://dive.saude.sc.gov.br/"),
+        ("DIVE/SC",
+         "Fonte oficial dos totais estaduais publicados; referência para comparação, separada da série municipal usada no modelo",
+         "https://dive.saude.sc.gov.br/index.php/doencas-e-agravos/dengue"),
     ], columns=["Fonte", "O que fornece", "Endereço"]).set_index("Fonte"))
     generated = pd.Timestamp(meta["gerado_em"]).tz_convert("America/Sao_Paulo")
     st.markdown(
@@ -53,13 +56,15 @@ with st.container(border=True):
     )
 
 with st.container(border=True):
-    st.subheader("Os números conferem com os boletins oficiais?", icon=":material/fact_check:")
+    st.subheader("Comparação com os totais estaduais oficiais da DIVE/SC", icon=":material/fact_check:")
     comparison = data.official_comparison()
     st.markdown(
-        "Comparamos os totais do painel com os informes epidemiológicos da Diretoria de Vigilância "
-        "Epidemiológica de Santa Catarina (DIVE/SC). As diferenças existem porque o painel conta os casos pela "
-        "**semana em que foram notificados**, e a DIVE, pelo **mês em que os sintomas começaram**; além disso, "
-        "casos suspeitos vão sendo confirmados ou descartados com o tempo."
+        "A DIVE/SC é a referência oficial para os totais estaduais publicados. Os valores do painel vêm da série "
+        "InfoDengue agregada a partir dos municípios e são usados para as análises municipais e o modelo; não são "
+        "ajustados para coincidir com os boletins. As diferenças também refletem que o painel conta os casos pela "
+        "**semana epidemiológica do InfoDengue**, e a DIVE agrupa os registros do SINAN pelo **mês em que os "
+        "sintomas começaram**. As fontes têm datas de corte diferentes, o InfoDengue é revisado retrospectivamente "
+        "e casos suspeitos podem ser reclassificados."
     )
     table = comparison.assign(
         periodo=comparison.apply(lambda r: f"{r['ano']} (jan a {fmt.MONTHS_SHORT[int(r['meses']) - 1]})", axis=1),
@@ -82,7 +87,10 @@ with st.container(border=True):
         },
         alt="Comparação entre os totais do painel e os boletins da DIVE/SC",
     )
-    st.caption("O último mês de cada boletim fica de fora porque ainda estava incompleto na data de publicação.")
+    st.caption(
+        "O mês mais recente de cada informe fica de fora por cautela, "
+        "para evitar comparar períodos possivelmente parciais."
+    )
 
 with st.container(border=True):
     st.subheader("Como o risco é calculado", icon=":material/psychology:")

@@ -5,16 +5,18 @@ fontes, montam a base analítica, treinam o modelo e transformam tudo em arquivo
 versionados, consultados em tempo de execução por um DuckDB em memória (somente leitura).
 
 ```
-InfoDengue, IBGE, INMET, ANA, DIVE/SC
+InfoDengue, IBGE, INMET, ANA
         │  notebook_eda_dengue.ipynb  (ou scripts/update_base.py coletar + montar)
         ▼
-data/processed/base_analitica_sc.csv   data/geo/   data/referencia/
+data/processed/base_analitica_sc.csv   data/geo/
         │  notebook_modelo_baseline.ipynb  (ou scripts/train_model.py treinar)
         ▼
 models/modelo_risco_dengue.pkl   models/modelo_baseline_risco_dengue.pkl   models/metricas_modelo.json
         │  notebook_modelo_baseline.ipynb, seção 7  (ou scripts/build_data.py)
         ▼
 data/app/*.parquet + metadados.json  ──►  DuckDbAnalyticsRepository (painel)
+
+DIVE/SC ──► data/referencia/ ──► totais estaduais oficiais, comparados à série do painel; não alimentam o modelo
 ```
 
 ## Comandos equivalentes aos notebooks

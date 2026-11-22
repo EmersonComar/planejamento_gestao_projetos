@@ -12,6 +12,11 @@ st.markdown(
     f"Acompanhe os casos de dengue nos **{meta['municipios']} municípios** do estado e veja onde o risco é maior. "
     f"Os dados vão de {fmt.month_year(periods[0])} até **{fmt.month_year(periods[-1])}**."
 )
+st.caption(
+    "Casos e indicadores desta página são agregados da série municipal do InfoDengue. "
+    "Para os totais estaduais oficiais, consulte os "
+    "[informes da DIVE/SC](https://dive.saude.sc.gov.br/index.php/doencas-e-agravos/dengue)."
+)
 
 start, end = components.period_selector(periods, key="inicio")
 label = fmt.period_text(start, end)

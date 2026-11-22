@@ -36,18 +36,22 @@ e na tabela "Como navegar este projeto" do README.
 - Validação temporal em séries temporais.
 
 ### 3. Dados
-- **Fontes:** InfoDengue, IBGE, INMET, ANA e DIVE/SC. A tabela está na seção 1 do notebook de dados.
-- **Definição de caso:** caso provável (confirmados, suspeitos e inconclusivos), conceito da DIVE/SC.
+- **Fontes:** InfoDengue (série municipal usada no modelo), IBGE, INMET, ANA e DIVE/SC (totais estaduais oficiais). A tabela está na seção 1 do notebook de dados.
+- **Definição de caso:** caso provável (confirmados, suspeitos e inconclusivos), conforme conceito também adotado pela DIVE/SC. A série do painel vem do InfoDengue; a referência oficial estadual vem dos informes da DIVE.
 - **Unidade de análise:** município × mês; 295 municípios, 142 meses, 41.890 registros.
 - **População e área:** população anual do IBGE (Censo 2022 e estimativas; 2023 interpolado) e área do Censo 2022.
 - **Chuva:** estação automática do INMET mais próxima que mediu ao menos 70% das horas do mês, até 60 km.
 - **Lacunas:** sem chuva em 9,1% das linhas; sem temperatura e umidade em 6,9%. Nada é preenchido com zero.
-- **Conferência com os informes da DIVE/SC** (casos prováveis; notificações entre parênteses):
-  - 2024: +8% (+4%);
-  - 2025: +13% (+6%);
-  - 2026: +33% (+5%).
+- **Comparação com os totais estaduais oficiais da DIVE/SC** (diferença percentual do painel; casos prováveis e notificações entre parênteses):
+  - 2024 (jan–nov): +7,85% (+4,29%);
+  - 2025 (jan–nov): +12,60% (+6,00%);
+  - 2026 (jan–out): +18,26% (+5,44%).
 
-  A diferença se explica pela data de referência: semana de notificação × início dos sintomas.
+  As diferenças refletem fontes e datas de corte distintas, a agregação por semana epidemiológica
+  no InfoDengue versus mês de início dos sintomas na DIVE e revisões retrospectivas. A série do
+  InfoDengue é mantida para análises municipais; não é ajustada para coincidir com a DIVE. O informe
+  11/2026 inclui novembro, mas a base do painel vai até outubro; por isso a comparação de 2026
+  cobre janeiro a outubro.
   Figura: comparação mensal, seção 4.2 do notebook de dados.
 
 ### 4. Análise exploratória (hipóteses)

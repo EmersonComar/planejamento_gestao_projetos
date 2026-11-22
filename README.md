@@ -41,7 +41,7 @@ Os números têm uma única origem: totais de casos vêm da base analítica e m�
 
 - Coleta automatizada de todas as fontes públicas (InfoDengue, IBGE, INMET, ANA e informes da DIVE/SC) e montagem da base analítica mensal por município, de jan/2015 ao último mês completo, no [notebook de dados](notebooks/notebook_eda_dengue.ipynb).
 - **Caso** é o *caso provável* de dengue (confirmados, suspeitos e inconclusivos, sem os descartados), conceito da Diretoria de Vigilância Epidemiológica de SC. A incidência é a do mês, com a população do IBGE de cada ano.
-- Totais conferidos com os informes epidemiológicos da DIVE/SC: de 8% a 13% acima nos casos prováveis de 2024 e 2025, porque a base conta pela semana de notificação e a DIVE pelo mês de início dos sintomas ([detalhes](docs/modelo-e-validacao.md)).
+- A DIVE/SC é a referência oficial para os totais estaduais publicados; o painel usa InfoDengue para análises municipais e para o modelo. As séries não são intercambiáveis: os casos prováveis do painel diferem dos totais DIVE em 8% (2024), 13% (2025) e 18% (2026) nos períodos comparáveis ([detalhes](docs/modelo-e-validacao.md)).
 - Análise exploratória das hipóteses H1–H7. Confirmadas: sazonalidade, temperatura (mais forte com um mês de defasagem), densidade e dependência temporal. Sem relação clara: chuva e saneamento.
 - Backlog refinado no [Trello](https://trello.com/b/MSoAuU1e/planejamentogestaoprojetos).
 
@@ -132,8 +132,8 @@ O gerenciamento de dependências e a execução local são feitos com `uv`. Cons
 
 O escopo analítico utiliza as seguintes fontes públicas, todas baixadas pelo [notebook de dados](notebooks/notebook_eda_dengue.ipynb). As fontes originalmente cogitadas na Sprint 0 — DATASUS TabNet e Ipeadata — foram substituídas por instabilidade e/ou falta de granularidade municipal:
 
-* [InfoDengue (Fiocruz)](https://info.dengue.mat.br/) — casos prováveis e notificações de dengue, temperatura e umidade por município e semana epidemiológica. Substituiu a API SINAN/DEMAS original (`apidadosabertos.saude.gov.br`), que se mostrou instável em uso real.
+* [InfoDengue (Fiocruz)](https://info.dengue.mat.br/) — fonte dos casos prováveis, notificações, temperatura e umidade por município e semana epidemiológica usados nas análises municipais e no modelo. Substituiu a API SINAN/DEMAS original (`apidadosabertos.saude.gov.br`), que se mostrou instável em uso real.
 * [IBGE - SIDRA](https://sidra.ibge.gov.br/) — população residente por município: estimativas anuais (tabela 6579) e Censo 2022 (tabela 4714), além da área territorial do Censo 2022. [APIs de Malhas e Localidades](https://servicodados.ibge.gov.br/api/docs/) — mapa dos municípios e regiões.
 * [INMET - Dados Históricos](https://portal.inmet.gov.br/dadoshistoricos) — precipitação horária das estações automáticas. Cada município usa a estação mais próxima que mediu o mês, até 60 km.
 * [ANA - Atlas Esgotos ETE 2020](https://dadosabertos.ana.gov.br/search) — remoção de DBO (qualidade do tratamento) por Estação de Tratamento de Esgoto ativa, agregada por município. Cobertura parcial: 55 dos 295 municípios de SC têm ETE ativa registrada nesse Atlas.
-* [DIVE/SC — Dengue](https://dive.saude.sc.gov.br/index.php/doencas-e-agravos/dengue) — informes epidemiológicos usados para conferir os totais da base ([`data/referencia/`](data/README.md)).
+* [DIVE/SC — Dengue](https://dive.saude.sc.gov.br/index.php/doencas-e-agravos/dengue) — fonte oficial dos totais estaduais publicados; os informes também são mantidos como referência separada para comparação ([`data/referencia/`](data/README.md)).

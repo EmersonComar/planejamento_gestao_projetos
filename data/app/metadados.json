@@ -1,11 +1,11 @@
 {
   "versao_esquema": 2,
-  "gerado_em": "2026-11-21T16:57:14+00:00",
+  "gerado_em": "2026-11-22T15:40:14+00:00",
   "csv_sha256": "55af781985769d4d86bbc63cb9e7e81e59319ae8ab100c72ea08b9f395b03a0e",
-  "modelo_sha256": "4315e9e75d7af285689382428f4211004a12fc3c4b372aa75b1cd09768eef886",
+  "modelo_sha256": "491310e888792fef3bba484512431ee46a690adc8d6fd9e3804dd1162b935b5b",
   "malha_sha256": "7aec8f3e195ffba5f17f1bc19b3b304be4125c3d2583a940269890654e402d68",
   "regioes_sha256": "1c44c117ca1a44a6a737c2f859f28ce51e6f9a6cdc0aecf7193117286788f05c",
-  "csv_gerado_em": "2026-11-21T13:53:43.547513-03:00",
+  "csv_gerado_em": "2026-11-22T12:37:13.519502-03:00",
   "registros": 41890,
   "definicao_casos": "casos prováveis (confirmados, suspeitos e inconclusivos), InfoDengue casprov",
   "registros_classificados": 38740,
@@ -64,7 +64,7 @@
       "log_populacao": 0.006
     },
     "metricas": {
-      "gerado_em": "2026-11-21T16:57:07+00:00",
+      "gerado_em": "2026-11-22T15:40:03+00:00",
       "configuracao": "rf+hgb_completo",
       "descricao": "Random Forest + Gradient Boosting, 20 informações",
       "alvo": "incidência mensal de casos prováveis >= 300 por 100 mil habitantes",

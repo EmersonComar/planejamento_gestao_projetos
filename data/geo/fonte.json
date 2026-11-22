@@ -1,5 +1,5 @@
 {
-  "baixado_em": "2026-11-21T16:53:19+00:00",
+  "baixado_em": "2026-11-22T15:16:05+00:00",
   "malha": "https://servicodados.ibge.gov.br/api/v3/malhas/estados/42?formato=application/vnd.geo+json&qualidade=intermediaria&intrarregiao=municipio",
   "localidades": "https://servicodados.ibge.gov.br/api/v1/localidades/estados/42/municipios",
   "orgao": "IBGE — API de Malhas Geográficas v3 e API de Localidades v1"

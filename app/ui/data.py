@@ -203,14 +203,14 @@ def state_typical_profile() -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def official_comparison() -> pd.DataFrame:
-    """Casos prováveis e notificações: boletins da DIVE/SC × base do painel, por ano."""
+    """Totais estaduais oficiais da DIVE/SC × série InfoDengue agregada no painel, por ano."""
     reference = pd.read_csv(ROOT / "data" / "referencia" / "dive_sc_dengue_mensal.csv")
+    # Exclude the latest bulletin month before joining; the panel may end one month earlier.
+    reference = reference.loc[reference["mes"] < reference.groupby("ano")["mes"].transform("max")]
     ours = require_repository().query("""
         SELECT ano, mes, SUM(casos)::BIGINT AS casos_painel, SUM(notificacoes)::BIGINT AS notificacoes_painel
         FROM mensal GROUP BY ano, mes""")
     merged = reference.merge(ours, on=["ano", "mes"], how="inner")
-    # o último mês de cada boletim ainda está incompleto: fica fora da comparação
-    merged = merged.loc[merged["mes"] < merged.groupby("ano")["mes"].transform("max")]
     summary = merged.groupby(["ano", "documento", "dados_ate"], as_index=False).agg(
         meses=("mes", "count"), casos_dive=("casos_provaveis", "sum"), casos_painel=("casos_painel", "sum"),
         notificacoes_dive=("notificacoes", "sum"), notificacoes_painel=("notificacoes_painel", "sum"),
