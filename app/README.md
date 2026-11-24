@@ -6,7 +6,7 @@ Painel web em Streamlit voltado ao público leigo. Entrada: `app/main.py` (local
 
 - `main.py`: configuração da página e navegação (`st.navigation`, menu no topo). Só a página aberta é executada.
 - `app_pages/`: uma página por arquivo.
-  - `inicio.py`: situação atual do estado, mapa do último mês, municípios com mais casos e prevenção.
+  - `inicio.py`: indicadores do período escolhido (casos, incidência, municípios em nível epidêmico e mês de pico), mapa e ranking dos municípios no período e prevenção.
   - `mapa.py`: mapa coroplético por mês (risco previsto, casos por 100 mil ou número de casos), cenário dos próximos meses e resumo do município clicado.
   - `municipio.py`: histórico, comparação com o estado, sazonalidade e clima de um município (`?municipio=Nome`).
   - `fatores.py`: explicações sobre época do ano, clima, tendência, regiões e o que o modelo considera.

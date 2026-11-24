@@ -120,17 +120,6 @@ with right:
         )
         st.page_link(nav.MUNICIPALITY, label="Ver um município em detalhe", icon=":material/arrow_forward:")
 
-with st.container(border=True):
-    st.subheader("Como os casos evoluíram no estado")
-    summary = (f"No período, o mês com mais casos foi **{fmt.month_year(peak['ano_mes'])}**, com "
-               f"**{fmt.num(peak['casos'])} casos**.")
-    yearly = window.groupby(window["ano_mes"].dt.year)["casos"].sum()
-    if len(yearly) > 1:
-        summary += f" O ano com mais casos foi **{int(yearly.idxmax())}** ({fmt.num(yearly.max())} casos no período)."
-    st.markdown(summary)
-    st.plotly_chart(charts.cases_bars(window), config=charts.PLOTLY_CONFIG,
-                    alt=f"Casos de dengue por mês em Santa Catarina de {label}", key="home_series")
-
 st.subheader("Como se proteger", icon=":material/health_and_safety:")
 with st.container(horizontal=True):
     with st.container(border=True):
