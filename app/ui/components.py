@@ -61,9 +61,14 @@ def period_selector(periods: list[pd.Timestamp], key: str) -> tuple[pd.Timestamp
 
 
 def previous_window(start: pd.Timestamp, end: pd.Timestamp) -> tuple[pd.Timestamp, pd.Timestamp]:
-    """Período imediatamente anterior, com o mesmo número de meses."""
+    """Mesmos meses do ano anterior (ou de anos inteiros antes, em períodos de mais de 12 meses).
+
+    A dengue é sazonal: comparar jan–out com mar–dez misturaria épocas diferentes do ano. Recuar em
+    anos inteiros mantém os mesmos meses do calendário sem sobrepor os dois períodos.
+    """
     months = (end.year - start.year) * 12 + end.month - start.month + 1
-    return start - pd.DateOffset(months=months), start - pd.DateOffset(months=1)
+    shift = 12 * -(-months // 12)
+    return start - pd.DateOffset(months=shift), end - pd.DateOffset(months=shift)
 
 
 def period_cases_metric(series: pd.DataFrame, previous_total: float | None, label: str, key: str,

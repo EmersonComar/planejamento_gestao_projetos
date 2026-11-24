@@ -237,3 +237,25 @@ def test_home_lists_epidemic_municipalities(repo):
     assert set(listed["nome_municipio"]) == set(expected["nome_municipio"])
     assert listed["meses_incidencia_alta"].is_monotonic_decreasing
     assert (listed["incidencia_pico_mensal"] >= 300).all()  # o pico mensal é o que se compara com o limiar
+
+
+@pytest.mark.parametrize("start,end,expected", [
+    ("2026-01-01", "2026-10-01", ("2025-01-01", "2025-10-01")),   # este ano: mesmos meses do ano anterior
+    ("2025-11-01", "2026-10-01", ("2024-11-01", "2025-10-01")),   # 12 meses: os 12 anteriores
+    ("2025-01-01", "2025-12-01", ("2024-01-01", "2024-12-01")),   # ano passado
+    ("2024-03-01", "2025-08-01", ("2022-03-01", "2023-08-01")),   # 18 meses: recua 2 anos inteiros
+])
+def test_comparison_window_keeps_calendar_months(start, end, expected):
+    from app.ui.components import previous_window
+
+    got = previous_window(pd.Timestamp(start), pd.Timestamp(end))
+    assert got == (pd.Timestamp(expected[0]), pd.Timestamp(expected[1]))
+
+
+def test_home_this_year_compares_with_same_months_last_year(repo):
+    at = open_app()
+    at.segmented_control(key="inicio_atalho").set_value("Este ano").run()
+    assert not at.exception
+    card = next(m for m in at.metric if m.label == "Casos no período")
+    last = repo.state_monthly()["ano_mes"].max()
+    assert card.proto.delta_description == f"em relação a jan/{(last.year - 1) % 100:02d} a {fmt.month_year(last.replace(year=last.year - 1), short=True)}"

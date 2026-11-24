@@ -51,7 +51,7 @@ with st.container(horizontal=True):
     st.metric("Municípios com risco alto previsto", fmt.num((snapshot["risco"] == "Alto").sum()), border=True,
               help="Classificação do modelo para este mês.")
     st.metric("Sem dados suficientes para prever", fmt.num(snapshot["risco"].isna().sum()), border=True,
-              help="Faltam informações como chuva ou casos do mês anterior. Aparecem em cinza no mapa.")
+              help="Falta alguma informação obrigatória para o modelo (temperatura, umidade, densidade ou casos do mês anterior). Aparecem em cinza no mapa.")
 
 selected_code = st.session_state.get("mapa_codigo")
 map_slot, detail_slot = st.columns([3, 1], gap="medium")
