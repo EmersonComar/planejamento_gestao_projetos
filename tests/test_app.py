@@ -89,7 +89,8 @@ def test_map_scenario_is_labeled_as_simulation(repo):
 def test_map_history_and_selection(repo):
     at = open_app("app_pages/mapa.py")
     period = pd.Timestamp("2024-03-01")
-    at.select_slider(key="mapa_mes").set_value(period).run()
+    at.selectbox(key="mapa_ano").set_value(2024).run()
+    at.segmented_control(key="mapa_mes_num").set_value(3).run()
     snapshot = repo.map_snapshot(period)
     assert metric(at, "Municípios em nível epidêmico") == fmt.num(snapshot["incidencia_alta_observada"].sum())
     code = int(snapshot.loc[snapshot["nome_municipio"] == "Blumenau", "codigo_ibge"].iat[0])
@@ -259,3 +260,20 @@ def test_home_this_year_compares_with_same_months_last_year(repo):
     card = next(m for m in at.metric if m.label == "Casos no período")
     last = repo.state_monthly()["ano_mes"].max()
     assert card.proto.delta_description == f"em relação a jan/{(last.year - 1) % 100:02d} a {fmt.month_year(last.replace(year=last.year - 1), short=True)}"
+
+
+def test_map_month_navigation(repo):
+    at = open_app("app_pages/mapa.py")
+    last = repo.periods()[-1]
+    assert (at.selectbox(key="mapa_ano").value, at.segmented_control(key="mapa_mes_num").value) == (last.year, last.month)
+    assert at.button(key="mapa_proximo").disabled
+    at.button(key="mapa_anterior").click().run()
+    previous = last - pd.DateOffset(months=1)
+    assert (at.selectbox(key="mapa_ano").value, at.segmented_control(key="mapa_mes_num").value) == (previous.year, previous.month)
+    # ao voltar para um ano sem o mês escolhido, fica no último mês disponível
+    at.selectbox(key="mapa_ano").set_value(2025).run()
+    at.segmented_control(key="mapa_mes_num").set_value(12).run()
+    at.selectbox(key="mapa_ano").set_value(last.year).run()
+    assert not at.exception
+    assert at.segmented_control(key="mapa_mes_num").value == last.month
+    assert metric(at, f"Casos em {fmt.month_year(last)}")

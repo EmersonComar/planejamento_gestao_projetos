@@ -1,3 +1,4 @@
+import pandas as pd
 import streamlit as st
 
 from app.ui import charts, data, fmt, nav
@@ -24,10 +25,39 @@ with st.container(horizontal=True, vertical_alignment="bottom"):
         mode = "risco"
 
 if view == "Meses passados":
-    period = st.select_slider(
-        "Mês", options=history, value=history[-1], format_func=lambda value: fmt.month_year(value, short=True),
-        key="mapa_mes",
-    )
+    # Ano + mês (em vez de uma barra deslizante, que sugeriria soma de todos os meses até o escolhido).
+    years = sorted({p.year for p in history})
+
+    def months_of(year: int) -> list[int]:
+        return [p.month for p in history if p.year == year]
+
+    if "mapa_ano" not in st.session_state:
+        st.session_state["mapa_ano"] = history[-1].year
+    if "mapa_mes_num" not in st.session_state:
+        st.session_state["mapa_mes_num"] = history[-1].month
+
+    def keep_valid_month() -> None:
+        months = months_of(st.session_state["mapa_ano"])
+        if st.session_state.get("mapa_mes_num") not in months:
+            st.session_state["mapa_mes_num"] = months[-1]
+
+    def step(delta: int) -> None:
+        current = pd.Timestamp(year=st.session_state["mapa_ano"], month=st.session_state["mapa_mes_num"], day=1)
+        target = history[min(max(history.index(current) + delta, 0), len(history) - 1)]
+        st.session_state["mapa_ano"], st.session_state["mapa_mes_num"] = target.year, target.month
+
+    current = pd.Timestamp(year=st.session_state["mapa_ano"], month=st.session_state["mapa_mes_num"], day=1)
+    with st.container(horizontal=True, vertical_alignment="bottom"):
+        st.button("Anterior", icon=":material/chevron_left:", on_click=step, args=(-1,), key="mapa_anterior",
+                  disabled=current == history[0], help="Mês anterior")
+        year = st.selectbox("Ano", years, key="mapa_ano", on_change=keep_valid_month, width=110)
+        month = st.segmented_control(
+            "Mês", months_of(year), required=True, key="mapa_mes_num",
+            format_func=lambda m: fmt.MONTHS_SHORT[m - 1].capitalize(),
+        )
+        st.button("Próximo", icon=":material/chevron_right:", on_click=step, args=(1,), key="mapa_proximo",
+                  disabled=current == history[-1], help="Próximo mês")
+    period = pd.Timestamp(year=year, month=month, day=1)
 else:
     period = st.segmented_control(
         "Mês", future, default=future[0], required=True, format_func=fmt.month_year, key="mapa_mes_futuro",
